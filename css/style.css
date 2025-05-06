@@ -12,18 +12,31 @@ html, body {
     position: absolute;
   }
   
+  /* Kontrol panelleri */
   .controls {
     position: absolute;
-    top: 10px;
-    left: 10px;
-    z-index: 1000;
     background: white;
     padding: 15px;
     border-radius: 4px;
     box-shadow: 0 0 10px rgba(0,0,0,0.2);
+    z-index: 1000;
+  }
+  
+  /* Harita kontrol paneli */
+  .map-controls {
+    top: 10px;
+    left: 10px;
     min-width: 200px;
   }
   
+  /* Rota kontrol paneli */
+  .route-controls {
+    top: 10px;
+    right: 10px;
+    min-width: 250px;
+  }
+  
+  /* Buton stilleri */
   button {
     display: block;
     margin: 5px 0;
@@ -34,13 +47,73 @@ html, body {
     border-radius: 4px;
     cursor: pointer;
     width: 100%;
+    transition: background-color 0.3s;
   }
   
   button:hover {
     background-color: #45a049;
   }
   
+  button:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+  }
+  
+  /* Rota butonları */
+  .route-button.start {
+    background-color: #4CAF50;
+  }
+  
+  .route-button.start:hover, .route-button.start.active {
+    background-color: #388E3C;
+  }
+  
+  .route-button.end {
+    background-color: #f44336;
+  }
+  
+  .route-button.end:hover, .route-button.end.active {
+    background-color: #D32F2F;
+  }
+  
+  .route-button.clear {
+    background-color: #9E9E9E;
+  }
+  
+  .route-button.clear:hover {
+    background-color: #757575;
+  }
+  
+  .route-button.calculate {
+    background-color: #2196F3;
+    margin-top: 10px;
+  }
+  
+  .route-button.calculate:hover:not(:disabled) {
+    background-color: #1976D2;
+  }
+  
+  /* Başlıklar */
   h3 {
     margin-top: 0;
+    margin-bottom: 10px;
     color: #333;
+  }
+  
+  /* Durum metni */
+  .status-text {
+    margin: 10px 0;
+    padding: 5px;
+    font-size: 14px;
+    color: #333;
+    border-radius: 4px;
+    background-color: #f5f5f5;
+    text-align: center;
+  }
+  
+  /* Buton grupları */
+  .button-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
   }

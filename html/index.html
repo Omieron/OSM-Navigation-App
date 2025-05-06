@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Navigation App</title>
+  <title>Navigasyon Sistemi</title>
   
   <!-- OpenLayers CSS -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v7.4.0/ol.css">
@@ -15,19 +15,32 @@
   <!-- Harita konteyneri -->
   <div id="map"></div>
   
-  <!-- Basit kontroller -->
-  <div class="controls">
+  <!-- Harita kontrolleri -->
+  <div class="controls map-controls">
     <h3>OpenStreetMap Haritası</h3>
-    <p>Türkiye haritası gösteriliyor</p>
-    <button id="zoom-turkey">Türkiye'yi Göster</button>
-    <button id="zoom-istanbul">İstanbul'u Göster</button>
-    <button id="zoom-ankara">Ankara'yı Göster</button>
+    <div class="button-group">
+      <button id="zoom-turkey">Türkiye'yi Göster</button>
+      <button id="zoom-istanbul">İstanbul'u Göster</button>
+      <button id="zoom-ankara">Ankara'yı Göster</button>
+    </div>
+  </div>
+  
+  <!-- Rota kontrolleri -->
+  <div class="controls route-controls">
+    <h3>Rota Seçimi</h3>
+    <div id="selection-status" class="status-text">Rota seçimi için bir işlem seçin</div>
+    <div class="button-group">
+      <button id="select-start" class="route-button start">Başlangıç Noktası Seç</button>
+      <button id="select-end" class="route-button end">Bitiş Noktası Seç</button>
+      <button id="clear-route" class="route-button clear">Temizle</button>
+      <button id="calculate-route" class="route-button calculate" disabled>Rota Hesapla</button>
+    </div>
   </div>
 
   <!-- OpenLayers JS -->
   <script src="https://cdn.jsdelivr.net/npm/ol@v7.4.0/dist/ol.js"></script>
   
-  <!-- Kendi JS dosyamız -->
-  <script src="../js/app.js"></script>
+  <!-- Kendi JS modüllerimiz (type="module" ekledik) -->
+  <script type="module" src="../js/app.js"></script>
 </body>
 </html>
