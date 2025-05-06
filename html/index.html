@@ -33,6 +33,25 @@
       <button id="select-start" class="route-button start">Başlangıç Noktası Seç</button>
       <button id="select-end" class="route-button end">Bitiş Noktası Seç</button>
       <button id="clear-route" class="route-button clear">Temizle</button>
+      
+      <!-- Araç tipi seçimi -->
+      <div class="vehicle-selector">
+        <div class="radio-group">
+          <label>
+            <input type="radio" name="vehicle-type" value="car" checked>
+            <span>Araba</span>
+          </label>
+          <label>
+            <input type="radio" name="vehicle-type" value="bicycle">
+            <span>Bisiklet</span>
+          </label>
+          <label>
+            <input type="radio" name="vehicle-type" value="pedestrian">
+            <span>Yaya</span>
+          </label>
+        </div>
+      </div>
+      
       <button id="calculate-route" class="route-button calculate" disabled>Rota Hesapla</button>
     </div>
   </div>

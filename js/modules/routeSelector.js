@@ -8,44 +8,53 @@ export default class RouteSelector {
      * @param {Object} eventBus - Modüller arası iletişim için EventBus
      */
     constructor(config, eventBus) {
-      this.config = config;
-      this.eventBus = eventBus;
-      this.startMarker = null;
-      this.endMarker = null;
-      this.currentSelectionMode = null; // 'start', 'end' veya null
-      
-      // EventBus olaylarını dinle
-      this.eventBus.subscribe('map:clicked', this.handleMapClick.bind(this));
-      this.eventBus.subscribe('selector:setMode', this.setSelectionMode.bind(this));
-      this.eventBus.subscribe('selector:clear', this.clearRouteMarkers.bind(this));
-      
-      this.init();
-    }
+        this.config = config;
+        this.eventBus = eventBus;
+        this.startMarker = null;
+        this.endMarker = null;
+        this.currentSelectionMode = null; // 'start', 'end' veya null
+        this.selectedVehicleType = 'car'; // Varsayılan araç tipi
+        
+        // EventBus olaylarını dinle
+        this.eventBus.subscribe('map:clicked', this.handleMapClick.bind(this));
+        this.eventBus.subscribe('selector:setMode', this.setSelectionMode.bind(this));
+        this.eventBus.subscribe('selector:clear', this.clearRouteMarkers.bind(this));
+        
+        this.init();
+      }
     
     /**
      * Başlangıç işlemlerini yapar ve UI elementlerine event listener'lar ekler
      */
     init() {
-      // UI butonlarına olay dinleyicileri ekle
-      document.getElementById('select-start').addEventListener('click', () => {
-        this.setSelectionMode('start');
-      });
-    
-      document.getElementById('select-end').addEventListener('click', () => {
-        this.setSelectionMode('end');
-      });
-    
-      document.getElementById('clear-route').addEventListener('click', () => {
-        this.clearRouteMarkers();
-      });
-    
-      document.getElementById('calculate-route').addEventListener('click', () => {
-        this.requestRouteCalculation();
-      });
+        // UI butonlarına olay dinleyicileri ekle
+        document.getElementById('select-start').addEventListener('click', () => {
+          this.setSelectionMode('start');
+        });
       
-      // UI durumunu güncelle
-      this.updateSelectionStatus();
-    }
+        document.getElementById('select-end').addEventListener('click', () => {
+          this.setSelectionMode('end');
+        });
+      
+        document.getElementById('clear-route').addEventListener('click', () => {
+          this.clearRouteMarkers();
+        });
+      
+        document.getElementById('calculate-route').addEventListener('click', () => {
+          this.requestRouteCalculation();
+        });
+        
+        // Araç tipi radio butonlarını dinle
+        document.querySelectorAll('input[name="vehicle-type"]').forEach(radio => {
+          radio.addEventListener('change', (e) => {
+            this.selectedVehicleType = e.target.value;
+            console.log(`Araç tipi değiştirildi: ${this.selectedVehicleType}`);
+          });
+        });
+        
+        // UI durumunu güncelle
+        this.updateSelectionStatus();
+      }
     
     /**
      * Seçim modunu ayarlar (başlangıç veya bitiş noktası seçimi)
@@ -170,23 +179,24 @@ export default class RouteSelector {
      * Rota hesaplama isteği gönderir
      */
     requestRouteCalculation() {
-      if (!this.startMarker || !this.endMarker) {
-        alert('Rota hesaplamak için başlangıç ve bitiş noktalarını seçmelisiniz.');
-        return;
+        if (!this.startMarker || !this.endMarker) {
+          alert('Rota hesaplamak için başlangıç ve bitiş noktalarını seçmelisiniz.');
+          return;
+        }
+        
+        const startCoord = ol.proj.toLonLat(this.startMarker.getGeometry().getCoordinates());
+        const endCoord = ol.proj.toLonLat(this.endMarker.getGeometry().getCoordinates());
+        
+        console.log('Rota hesaplanıyor:');
+        console.log(`Başlangıç: ${startCoord[0].toFixed(6)}, ${startCoord[1].toFixed(6)}`);
+        console.log(`Bitiş: ${endCoord[0].toFixed(6)}, ${endCoord[1].toFixed(6)}`);
+        console.log(`Araç tipi: ${this.selectedVehicleType}`);
+        
+        // Rota hesaplama isteğini EventBus üzerinden yayınla
+        this.eventBus.publish('route:calculate', {
+          start: startCoord,
+          end: endCoord,
+          type: this.selectedVehicleType // Kullanıcının seçtiği araç tipini kullan
+        });
       }
-      
-      const startCoord = ol.proj.toLonLat(this.startMarker.getGeometry().getCoordinates());
-      const endCoord = ol.proj.toLonLat(this.endMarker.getGeometry().getCoordinates());
-      
-      console.log('Rota hesaplanıyor:');
-      console.log(`Başlangıç: ${startCoord[0].toFixed(6)}, ${startCoord[1].toFixed(6)}`);
-      console.log(`Bitiş: ${endCoord[0].toFixed(6)}, ${endCoord[1].toFixed(6)}`);
-      
-      // Rota hesaplama isteğini EventBus üzerinden yayınla
-      this.eventBus.publish('route:calculate', {
-        start: startCoord,
-        end: endCoord,
-        type: this.config.routing.vehicleType
-      });
-    }
   }

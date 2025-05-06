@@ -103,6 +103,9 @@ export default class RouteCalculator {
      * @param {string} type - Araç tipi
      */
     createMockRoute(start, end, type) {
+      // Kullanıcının seçtiği araç tipini konsola yazdır
+      console.log(`RouteCalculator: Araç tipi = ${type}`);
+      
       // Gerçekçi görünmesi için iki nokta arasında ara noktalar oluştur
       const coordinates = this.generateIntermediatePoints(start, end, 5);
       
@@ -112,18 +115,25 @@ export default class RouteCalculator {
       // Mesafe hesapla
       const distance = this.calculateTotalDistance(coordinates);
       
-      // Rota bilgilerini EventBus ile yayınla
+      // Tahmini süreyi hesapla
+      const duration = this.estimateDuration(distance, type);
+      
+      // Rota bilgilerini oluştur
       const routeInfo = {
         distance: distance,
-        duration: this.estimateDuration(distance, type),
+        duration: duration,
         type: type,
         coordinates: coordinates
       };
       
+      // Debug için routeInfo nesnesini konsola yazdır
+      console.log('RouteInfo oluşturuldu:', routeInfo);
+      
+      // Route hesaplanması eventini yayınla
       this.eventBus.publish('route:calculated', routeInfo);
       
       // Kullanıcıya bilgi göster
-      this.displayRouteInfo(routeInfo);
+      this.showRouteInformation(distance, duration, type);
     }
     
     /**
@@ -212,26 +222,28 @@ export default class RouteCalculator {
     
     /**
      * Rota bilgilerini kullanıcıya gösterir
-     * @param {Object} routeInfo - Rota bilgileri
+     * @param {number} distance - Mesafe (km)
+     * @param {number} duration - Süre (dakika)
+     * @param {string} vehicleType - Araç tipi
      */
-    displayRouteInfo(routeInfo) {
-      const { distance, duration, type } = routeInfo;
+    showRouteInformation(distance, duration, vehicleType) {
+      // Araç tipine göre metni belirle
+      let vehicleText;
       
-      let vehicleText = '';
-      switch (type) {
-        case 'car':
-          vehicleText = 'Araba';
-          break;
-        case 'bicycle':
-          vehicleText = 'Bisiklet';
-          break;
-        case 'pedestrian':
-          vehicleText = 'Yaya';
-          break;
-        default:
-          vehicleText = 'Araç';
+      if (vehicleType === 'car') {
+        vehicleText = 'Araba';
+      } else if (vehicleType === 'bicycle') {
+        vehicleText = 'Bisiklet';
+      } else if (vehicleType === 'pedestrian') {
+        vehicleText = 'Yaya';
+      } else {
+        vehicleText = 'Araç';
       }
       
+      // Konsola bilgileri yazdır (debug için)
+      console.log(`Gösterilecek araç tipi: ${vehicleType} -> ${vehicleText}`);
+      
+      // Bilgi mesajını göster
       alert(`Rota Bilgileri:
   ${vehicleText} ile seyahat
   Mesafe: ${distance.toFixed(2)} km

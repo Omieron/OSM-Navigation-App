@@ -117,3 +117,40 @@ html, body {
     flex-direction: column;
     gap: 5px;
   }
+
+  /* Buton grupları */
+.button-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+/* Araç seçici */
+.vehicle-selector {
+  margin: 10px 0;
+}
+
+.radio-group {
+  display: flex;
+  justify-content: space-between;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+  padding: 5px;
+}
+
+.radio-group label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  padding: 5px;
+  flex: 1;
+  justify-content: center;
+}
+
+.radio-group input[type="radio"] {
+  margin-right: 5px;
+}
+
+.radio-group span {
+  font-size: 14px;
+}
