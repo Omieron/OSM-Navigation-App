@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Navigation App</title>
+  
+  <!-- OpenLayers CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v7.4.0/ol.css">
+  
+  <!-- Kendi CSS dosyamız -->
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+  <!-- Harita konteyneri -->
+  <div id="map"></div>
+  
+  <!-- Basit kontroller -->
+  <div class="controls">
+    <h3>OpenStreetMap Haritası</h3>
+    <p>Türkiye haritası gösteriliyor</p>
+    <button id="zoom-turkey">Türkiye'yi Göster</button>
+    <button id="zoom-istanbul">İstanbul'u Göster</button>
+    <button id="zoom-ankara">Ankara'yı Göster</button>
+  </div>
+
+  <!-- OpenLayers JS -->
+  <script src="https://cdn.jsdelivr.net/npm/ol@v7.4.0/dist/ol.js"></script>
+  
+  <!-- Kendi JS dosyamız -->
+  <script src="../js/app.js"></script>
+</body>
+</html>
