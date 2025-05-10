@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Navigasyon Sistemi</title>
+  <title>OSM Turkey Overpass Navigasyon Sistemi</title>
   
   <!-- OpenLayers CSS -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v7.4.0/ol.css">
@@ -54,6 +54,16 @@
       
       <button id="calculate-route" class="route-button calculate" disabled>Rota Hesapla</button>
     </div>
+    
+    <div id="route-info" class="route-info" style="display: none;">
+      <h4>Rota Bilgileri</h4>
+      <div id="route-details"></div>
+    </div>
+  </div>
+
+  <!-- Backend bilgi kutusu -->
+  <div class="api-info">
+    <p>Backend: WSL üzerinde FastAPI (Port: 8000)</p>
   </div>
 
   <!-- OpenLayers JS -->

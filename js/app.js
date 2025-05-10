@@ -42,8 +42,77 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
   
+  // Rota yükleniyor durumu eventbusunu dinle
+  eventBus.subscribe('route:loading', function(isLoading) {
+    const calcButton = document.getElementById('calculate-route');
+    if (isLoading) {
+      calcButton.disabled = true;
+      calcButton.textContent = 'Rota hesaplanıyor...';
+    } else {
+      calcButton.disabled = false;
+      calcButton.textContent = 'Rota Hesapla';
+    }
+  });
+  
   // Uygulama hazır olduğunda EventBus üzerinden bildir
   eventBus.publish('app:ready', {
     timestamp: Date.now()
   });
+  
+  // Backend bağlantısını test et
+  testBackendConnection();
 });
+
+/**
+ * Backend API bağlantısını kontrol eder
+ */
+function testBackendConnection() {
+  const statusText = document.createElement('div');
+  statusText.id = 'api-status';
+  statusText.style.position = 'absolute';
+  statusText.style.bottom = '10px';
+  statusText.style.right = '10px';
+  statusText.style.padding = '5px 10px';
+  statusText.style.borderRadius = '4px';
+  statusText.style.fontSize = '12px';
+  statusText.style.zIndex = '1000';
+  statusText.textContent = 'Backend kontrol ediliyor...';
+  statusText.style.backgroundColor = '#FFF59D';
+  document.body.appendChild(statusText);
+  
+  fetch(`${config.api.baseUrl}${config.api.districts}`)
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      statusText.textContent = 'Backend bağlantısı başarılı';
+      statusText.style.backgroundColor = '#A5D6A7';
+      
+      // 3 saniye sonra mesajı gizle
+      setTimeout(() => {
+        statusText.style.opacity = '0';
+        statusText.style.transition = 'opacity 1s';
+      }, 3000);
+      
+      return response.json();
+    })
+    .catch(error => {
+      console.error('Backend API kontrol hatası:', error);
+      statusText.textContent = 'Backend bağlantısı başarısız!';
+      statusText.style.backgroundColor = '#EF9A9A';
+      
+      // Backend URL'sini göster
+      const urlInfo = document.createElement('div');
+      urlInfo.style.fontSize = '10px';
+      urlInfo.style.marginTop = '5px';
+      urlInfo.textContent = `URL: ${config.api.baseUrl}`;
+      statusText.appendChild(urlInfo);
+      
+      // WSL IP adresi ile ilgili bilgilendirme ekle
+      const tipInfo = document.createElement('div');
+      tipInfo.style.fontSize = '10px';
+      tipInfo.style.marginTop = '5px';
+      tipInfo.textContent = 'config.js dosyasında backend URL ayarlarını kontrol edin.';
+      statusText.appendChild(tipInfo);
+    });
+}
