@@ -16,6 +16,10 @@ export default {
       ankara: {
         center: [32.85, 39.92],
         zoom: 10
+      },
+      balikesir: {
+        center: [27.9, 39.6],
+        zoom: 9
       }
     },
     minZoom: 4,
@@ -39,13 +43,20 @@ export default {
     }
   },
   
-  // API endpoint'leri
+  // API endpoint'leri - WSL IP adresine göre ayarlanmalı
   api: {
-    // WSL IP adresi ile güncellendi
-    baseUrl: 'http://****:8000',
+    baseUrl: 'http://172.22.226.221:8000',
+    // Şimdilik mevcut API endpoint'lerini kullanıyoruz
     route: '/route',
     districts: '/districts'
   },
+  
+  // Desteklenen şehirler
+  cities: [
+    { id: 'balikesir', name: 'Balıkesir', default: true },
+    { id: 'istanbul', name: 'İstanbul' },
+    { id: 'ankara', name: 'Ankara' }
+  ],
   
   // Rota hesaplama ayarları
   routing: {

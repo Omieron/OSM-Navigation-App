@@ -15,6 +15,9 @@ document.addEventListener('DOMContentLoaded', function() {
   // EventBus oluştur - tüm modüllerin iletişimi için
   const eventBus = new EventBus();
   
+  // Aktif şehir
+  let activeCity = 'balikesir'; // Varsayılan şehir
+  
   // Modülleri başlat
   const mapManager = new MapManager(config, eventBus);
   const routeSelector = new RouteSelector(config, eventBus);
@@ -28,29 +31,72 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
   
-  document.getElementById('zoom-istanbul').addEventListener('click', function() {
-    eventBus.publish('map:zoomToLocation', {
-      coords: config.map.initialView.istanbul.center,
-      zoom: config.map.initialView.istanbul.zoom
-    });
+  // Seçili şehre zoom
+  document.getElementById('zoom-to-city').addEventListener('click', function() {
+    const citySelect = document.getElementById('city-select');
+    const selectedCity = citySelect.value;
+    
+    if (selectedCity && config.map.initialView[selectedCity]) {
+      eventBus.publish('map:zoomToLocation', {
+        coords: config.map.initialView[selectedCity].center,
+        zoom: config.map.initialView[selectedCity].zoom
+      });
+    }
   });
   
-  document.getElementById('zoom-ankara').addEventListener('click', function() {
-    eventBus.publish('map:zoomToLocation', {
-      coords: config.map.initialView.ankara.center,
-      zoom: config.map.initialView.ankara.zoom
-    });
+  // Şehir seçimini izle
+  document.getElementById('city-select').addEventListener('change', function(e) {
+    const selectedCity = e.target.value;
+    activeCity = selectedCity;
+    
+    // UI güncelleme
+    document.getElementById('active-city').textContent = 
+      selectedCity.charAt(0).toUpperCase() + selectedCity.slice(1);
+    
+    // Veritabanı ismini güncelle
+    document.getElementById('active-database').textContent = 
+      `routing_${selectedCity === 'balikesir' ? 'db' : selectedCity}`;
+      
+    // Şehir değiştiğinde rotayı temizle
+    eventBus.publish('route:clear');
+    
+    // Diğer modülleri şehir değişikliği hakkında bilgilendir
+    eventBus.publish('city:changed', selectedCity);
+  });
+  
+  // Route Calculator için city:changed olayını dinleyiciyi manuel olarak oluştur
+  // (CityManager olmadığından)
+  eventBus.subscribe('city:changed', (cityId) => {
+    // RouteCalculator sınıfı içinde bu bilgiyi kullan
+    routeCalculator.setCurrentCity(cityId);
+    console.log(`Rota hesaplayıcı için şehir ayarlandı: ${cityId}`);
   });
   
   // Rota yükleniyor durumu eventbusunu dinle
   eventBus.subscribe('route:loading', function(isLoading) {
     const calcButton = document.getElementById('calculate-route');
+    const loadingOverlay = document.getElementById('loading-overlay');
+    
     if (isLoading) {
+      // Hesaplama başladığında
       calcButton.disabled = true;
       calcButton.textContent = 'Rota hesaplanıyor...';
+      
+      // Overlay'i göster
+      loadingOverlay.style.display = 'flex';
+      
+      // Tüm tıklama eventlerini devre dışı bırakmak için overlay'i göster
+      document.body.classList.add('loading');
     } else {
+      // Hesaplama bittiğinde
       calcButton.disabled = false;
       calcButton.textContent = 'Rota Hesapla';
+      
+      // Overlay'i gizle
+      loadingOverlay.style.display = 'none';
+      
+      // Tıklama eventlerini tekrar aktif et
+      document.body.classList.remove('loading');
     }
   });
   
@@ -80,11 +126,27 @@ function testBackendConnection() {
   statusText.style.backgroundColor = '#FFF59D';
   document.body.appendChild(statusText);
   
-  fetch(`${config.api.baseUrl}${config.api.districts}`)
-    .then(response => {
+  // API bağlantı durumunu daha güvenli bir şekilde kontrol et
+  const checkAPI = async () => {
+    try {
+      console.log(`Backend API kontrol ediliyor: ${config.api.baseUrl}`);
+      
+      // Önce fetch ile temel bağlantıyı kontrol et
+      // `/cities` endpoint'i olmadığı için `/districts` endpoint'ini kontrol et
+      const response = await fetch(`${config.api.baseUrl}/districts`, {
+        method: 'GET',
+        // Timeout ekle
+        signal: AbortSignal.timeout(5000) // 5 saniye timeout
+      });
+      
       if (!response.ok) {
         throw new Error(`HTTP error! Status: ${response.status}`);
       }
+      
+      // Yanıtı JSON olarak parse et
+      const data = await response.json();
+      
+      // Başarılı mesajı göster
       statusText.textContent = 'Backend bağlantısı başarılı';
       statusText.style.backgroundColor = '#A5D6A7';
       
@@ -94,12 +156,17 @@ function testBackendConnection() {
         statusText.style.transition = 'opacity 1s';
       }, 3000);
       
-      return response.json();
-    })
-    .catch(error => {
+    } catch (error) {
       console.error('Backend API kontrol hatası:', error);
       statusText.textContent = 'Backend bağlantısı başarısız!';
       statusText.style.backgroundColor = '#EF9A9A';
+      
+      // Hata detaylarını göster
+      const errorDetails = document.createElement('div');
+      errorDetails.style.fontSize = '10px';
+      errorDetails.style.marginTop = '5px';
+      errorDetails.textContent = error.message || 'Bilinmeyen hata';
+      statusText.appendChild(errorDetails);
       
       // Backend URL'sini göster
       const urlInfo = document.createElement('div');
@@ -108,11 +175,15 @@ function testBackendConnection() {
       urlInfo.textContent = `URL: ${config.api.baseUrl}`;
       statusText.appendChild(urlInfo);
       
-      // WSL IP adresi ile ilgili bilgilendirme ekle
-      const tipInfo = document.createElement('div');
-      tipInfo.style.fontSize = '10px';
-      tipInfo.style.marginTop = '5px';
-      tipInfo.textContent = 'config.js dosyasında backend URL ayarlarını kontrol edin.';
-      statusText.appendChild(tipInfo);
-    });
+      // Config dosyasını güncelleme ipucu
+      const configTip = document.createElement('div');
+      configTip.style.fontSize = '10px';
+      configTip.style.marginTop = '5px';
+      configTip.textContent = 'config.js dosyasında baseUrl ayarını güncelleyin.';
+      statusText.appendChild(configTip);
+    }
+  };
+  
+  // API kontrolünü başlat
+  checkAPI();
 }
