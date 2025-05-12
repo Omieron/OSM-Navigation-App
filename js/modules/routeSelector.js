@@ -94,25 +94,33 @@ export default class RouteSelector {
       calcButton.disabled = !(this.startMarker && this.endMarker);
     }
     
-    /**
-     * Harita tıklamasını işler
-     * @param {Object} data - {coordinate: [x, y], lonLat: [lon, lat]}
-     */
-    handleMapClick(data) {
-      if (!this.currentSelectionMode) return;
-      
-      console.log(`Tıklanan nokta: ${data.lonLat[0].toFixed(6)}, ${data.lonLat[1].toFixed(6)}`);
-      
-      if (this.currentSelectionMode === 'start') {
-        this.setStartMarker(data.coordinate);
-      } else if (this.currentSelectionMode === 'end') {
-        this.setEndMarker(data.coordinate);
-      }
-      
-      // Seçim modunu sıfırla
-      this.currentSelectionMode = null;
-      this.updateSelectionStatus();
-    }
+   /**
+ * Harita tıklamasını işler
+ * @param {Object} data - {coordinate: [x, y], lonLat: [lon, lat]}
+ */
+handleMapClick(data) {
+  if (!this.currentSelectionMode) return;
+  
+  console.log(`Tıklanan nokta: ${data.lonLat[0].toFixed(6)}, ${data.lonLat[1].toFixed(6)}`);
+  
+  if (this.currentSelectionMode === 'start') {
+    this.setStartMarker(data.coordinate);
+  } else if (this.currentSelectionMode === 'end') {
+    this.setEndMarker(data.coordinate);
+  }
+  
+  // Seçim modunu sıfırla
+  this.currentSelectionMode = null;
+  this.updateSelectionStatus();
+  
+  // Eğer hem başlangıç hem de bitiş noktaları seçilmişse, otomatik rota hesapla
+  if (this.startMarker && this.endMarker) {
+    // Kısa bir gecikme ekleyelim ki kullanıcı ikinci noktanın yerleştiğini görebilsin
+    setTimeout(() => {
+      this.requestRouteCalculation();
+    }, 100);
+  }
+}
     
     /**
      * Başlangıç noktası marker'ını ayarlar
