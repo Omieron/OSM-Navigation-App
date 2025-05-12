@@ -13,7 +13,7 @@ export default class RouteSelector {
         this.startMarker = null;
         this.endMarker = null;
         this.currentSelectionMode = null; // 'start', 'end' veya null
-        this.selectedVehicleType = 'car'; // Varsayılan araç tipi
+        this.selectedVehicleType = 'car'; // Sabit araç tipi - sadece araba
         
         // EventBus olaylarını dinle
         this.eventBus.subscribe('map:clicked', this.handleMapClick.bind(this));
@@ -40,17 +40,7 @@ export default class RouteSelector {
           this.clearRouteMarkers();
         });
       
-        document.getElementById('calculate-route').addEventListener('click', () => {
-          this.requestRouteCalculation();
-        });
-        
-        // Araç tipi radio butonlarını dinle
-        document.querySelectorAll('input[name="vehicle-type"]').forEach(radio => {
-          radio.addEventListener('change', (e) => {
-            this.selectedVehicleType = e.target.value;
-            console.log(`Araç tipi değiştirildi: ${this.selectedVehicleType}`);
-          });
-        });
+        // Rota hesapla butonu ile ilgili kod kaldırıldı
         
         // UI durumunu güncelle
         this.updateSelectionStatus();
@@ -72,7 +62,6 @@ export default class RouteSelector {
       const startButton = document.getElementById('select-start');
       const endButton = document.getElementById('select-end');
       const statusText = document.getElementById('selection-status');
-      const calcButton = document.getElementById('calculate-route');
       
       // Butonların active durumlarını güncelle
       startButton.classList.toggle('active', this.currentSelectionMode === 'start');
@@ -90,37 +79,36 @@ export default class RouteSelector {
         statusText.style.color = '#333';
       }
       
-      // Rota hesaplama butonunun durumunu güncelle
-      calcButton.disabled = !(this.startMarker && this.endMarker);
+      // Rota hesaplama butonuyla ilgili kod kaldırıldı
     }
     
-   /**
- * Harita tıklamasını işler
- * @param {Object} data - {coordinate: [x, y], lonLat: [lon, lat]}
- */
-handleMapClick(data) {
-  if (!this.currentSelectionMode) return;
-  
-  console.log(`Tıklanan nokta: ${data.lonLat[0].toFixed(6)}, ${data.lonLat[1].toFixed(6)}`);
-  
-  if (this.currentSelectionMode === 'start') {
-    this.setStartMarker(data.coordinate);
-  } else if (this.currentSelectionMode === 'end') {
-    this.setEndMarker(data.coordinate);
-  }
-  
-  // Seçim modunu sıfırla
-  this.currentSelectionMode = null;
-  this.updateSelectionStatus();
-  
-  // Eğer hem başlangıç hem de bitiş noktaları seçilmişse, otomatik rota hesapla
-  if (this.startMarker && this.endMarker) {
-    // Kısa bir gecikme ekleyelim ki kullanıcı ikinci noktanın yerleştiğini görebilsin
-    setTimeout(() => {
-      this.requestRouteCalculation();
-    }, 100);
-  }
-}
+    /**
+     * Harita tıklamasını işler
+     * @param {Object} data - {coordinate: [x, y], lonLat: [lon, lat]}
+     */
+    handleMapClick(data) {
+      if (!this.currentSelectionMode) return;
+      
+      console.log(`Tıklanan nokta: ${data.lonLat[0].toFixed(6)}, ${data.lonLat[1].toFixed(6)}`);
+      
+      if (this.currentSelectionMode === 'start') {
+        this.setStartMarker(data.coordinate);
+      } else if (this.currentSelectionMode === 'end') {
+        this.setEndMarker(data.coordinate);
+      }
+      
+      // Seçim modunu sıfırla
+      this.currentSelectionMode = null;
+      this.updateSelectionStatus();
+      
+      // Eğer hem başlangıç hem de bitiş noktaları seçilmişse, otomatik rota hesapla
+      if (this.startMarker && this.endMarker) {
+        // Kısa bir gecikme ekleyelim ki kullanıcı ikinci noktanın yerleştiğini görebilsin
+        setTimeout(() => {
+          this.requestRouteCalculation();
+        }, 100);
+      }
+    }
     
     /**
      * Başlangıç noktası marker'ını ayarlar
@@ -188,7 +176,7 @@ handleMapClick(data) {
      */
     requestRouteCalculation() {
         if (!this.startMarker || !this.endMarker) {
-          alert('Rota hesaplamak için başlangıç ve bitiş noktalarını seçmelisiniz.');
+          // Alert kaldırıldı - artık kullanıcı manuel hesaplamayacak
           return;
         }
         
@@ -204,7 +192,7 @@ handleMapClick(data) {
         this.eventBus.publish('route:calculate', {
           start: startCoord,
           end: endCoord,
-          type: this.selectedVehicleType // Kullanıcının seçtiği araç tipini kullan
+          type: this.selectedVehicleType // Sabit olarak 'car'
         });
       }
   }

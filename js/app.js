@@ -30,13 +30,11 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Rota yükleniyor durumu eventbusunu dinle
   eventBus.subscribe('route:loading', function(isLoading) {
-    const calcButton = document.getElementById('calculate-route');
     const loadingOverlay = document.getElementById('loading-overlay');
     
     if (isLoading) {
       // Hesaplama başladığında
-      calcButton.disabled = true;
-      calcButton.textContent = 'Rota hesaplanıyor...';
+      // Rota hesapla butonu referansı kaldırıldı
       
       // Overlay'i göster
       loadingOverlay.style.display = 'flex';
@@ -45,8 +43,7 @@ document.addEventListener('DOMContentLoaded', function() {
       document.body.classList.add('loading');
     } else {
       // Hesaplama bittiğinde
-      calcButton.disabled = false;
-      calcButton.textContent = 'Rota Hesapla';
+      // Rota hesapla butonu referansı kaldırıldı
       
       // Overlay'i gizle
       loadingOverlay.style.display = 'none';
@@ -56,21 +53,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
   
-  // Araç tiplerini etkinleştir (OSRM destekliyor)
-  const bikeRadio = document.querySelector('input[value="bicycle"]');
-  const pedestrianRadio = document.querySelector('input[value="pedestrian"]');
-  
-  if (bikeRadio) {
-    bikeRadio.disabled = false;
-    bikeRadio.parentElement.classList.remove('disabled');
-  }
-  
-  if (pedestrianRadio) {
-    pedestrianRadio.disabled = false;
-    pedestrianRadio.parentElement.classList.remove('disabled');
-  }
-  
-  // Uygulama hazır olduğunda EventBus üzerinden bildir
+  // Uygulama hazır olduğunda EventBus aracılığıyla bildir
   eventBus.publish('app:ready', {
     timestamp: Date.now()
   });
