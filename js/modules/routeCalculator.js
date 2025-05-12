@@ -285,8 +285,18 @@ export default class RouteCalculator {
       });
     }
     
-    // Mesafe birimini km'ye çevir (API verisi farklı birimde olabilir)
-    const distanceKm = totalDistance > 1000 ? totalDistance / 1000 : totalDistance;
+    // API'den gelen verinin birimini kontrol et ve gerekirse dönüştür
+    // Eğer mesafe çok küçükse (örneğin < 0.1), muhtemelen birim metre cinsindendir
+    let distanceKm = totalDistance;
+    if (totalDistance > 1000) {
+      distanceKm = totalDistance / 1000; // Metreyi km'ye çevir
+    } else if (totalDistance < 0.1 && coordinates.length > 1) {
+      // Çok küçük bir değer geldi, koordinatlardan mesafeyi kendimiz hesaplayalım
+      distanceKm = this.calculateDistanceFromCoordinates(coordinates);
+    }
+    
+    // Minimum değer kontrolü
+    distanceKm = Math.max(distanceKm, 0.1); // En az 100m olsun
     
     // Tahmini süreyi hesapla
     const duration = this.estimateDuration(distanceKm, type);
@@ -301,6 +311,47 @@ export default class RouteCalculator {
   }
   
   /**
+   * Koordinatlardan mesafe hesaplar (Haversine formülü)
+   * @param {Array} coordinates - [[lon1, lat1], [lon2, lat2], ...] formatında koordinatlar
+   * @returns {number} - Kilometre cinsinden mesafe
+   */
+  calculateDistanceFromCoordinates(coordinates) {
+    if (!coordinates || coordinates.length < 2) return 0.1; // En az 100m
+    
+    let totalDistance = 0;
+    
+    for (let i = 0; i < coordinates.length - 1; i++) {
+      const [lon1, lat1] = coordinates[i];
+      const [lon2, lat2] = coordinates[i + 1];
+      
+      // Haversine formülü ile iki nokta arası mesafe (km cinsinden)
+      const R = 6371; // Dünya yarıçapı (km)
+      const dLat = this.deg2rad(lat2 - lat1);
+      const dLon = this.deg2rad(lon2 - lon1);
+      const a = 
+        Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.cos(this.deg2rad(lat1)) * Math.cos(this.deg2rad(lat2)) * 
+        Math.sin(dLon/2) * Math.sin(dLon/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      const distance = R * c;
+      
+      totalDistance += distance;
+    }
+    
+    // Minimum mesafe kontrolü
+    return Math.max(totalDistance, 0.1); // En az 100m
+  }
+  
+  /**
+   * Derece cinsinden açıyı radyana çevirir
+   * @param {number} deg - Derece
+   * @returns {number} - Radyan
+   */
+  deg2rad(deg) {
+    return deg * (Math.PI/180);
+  }
+  
+  /**
    * Mesafeye göre tahmini süreyi hesaplar
    * @param {number} distance - Kilometre cinsinden mesafe
    * @param {string} type - Araç tipi
@@ -308,13 +359,24 @@ export default class RouteCalculator {
    */
   estimateDuration(distance, type) {
     const speeds = {
-      car: 60, // km/saat
+      car: 30, // Şehir içi ortalama hız (km/saat)
       bicycle: 15, // km/saat
       pedestrian: 5 // km/saat
     };
     
+    // Araç tipine göre hız seç veya varsayılan olarak araba hızını kullan
     const speed = speeds[type] || speeds.car;
-    return (distance / speed) * 60; // dakika cinsinden süre
+    
+    // Süreyi hesapla (saat * 60 = dakika)
+    let duration = (distance / speed) * 60;
+    
+    // İstanbul gibi yoğun trafikli şehirlerde ek süre
+    if (this.currentCity === 'istanbul' && type === 'car') {
+      duration *= 1.5; // %50 trafik faktörü
+    }
+    
+    // Minimum süre kontrolü (en az 1 dakika)
+    return Math.max(Math.round(duration), 1);
   }
   
   /**
@@ -341,13 +403,34 @@ export default class RouteCalculator {
     // Şehir adını formatla
     const cityName = city.charAt(0).toUpperCase() + city.slice(1);
     
+    // Mesafeyi formatla
+    let distanceText;
+    if (distance < 1) {
+      // 1 km'den küçükse metre cinsinden göster
+      distanceText = `${Math.round(distance * 1000)} m`;
+    } else {
+      // 1 km'den büyükse km cinsinden göster (1 ondalık basamaklı)
+      distanceText = `${distance.toFixed(1)} km`;
+    }
+    
+    // Süreyi formatla
+    let durationText;
+    if (duration < 60) {
+      // 1 saatten az
+      durationText = `${duration} dakika`;
+    } else {
+      // 1 saatten fazla
+      const hours = Math.floor(duration / 60);
+      const minutes = duration % 60;
+      durationText = `${hours} saat${minutes > 0 ? ` ${minutes} dakika` : ''}`;
+    }
+    
     // Konsola bilgileri yazdır (debug için)
-    console.log(`Gösterilecek araç tipi: ${vehicleType} -> ${vehicleText}`);
-    console.log(`Şehir: ${cityName}`);
+    console.log(`Rota bilgileri: ${cityName}, ${vehicleText}, ${distanceText}, ${durationText}`);
     
     // Rota bilgilerini status mesajında göster
     this.showStatusMessage(
-      `${cityName} - ${vehicleText} ile: ${distance.toFixed(2)} km, ${Math.round(duration)} dakika`,
+      `${cityName} - ${vehicleText} ile: ${distanceText}, ${durationText}`,
       'success'
     );
     
@@ -359,8 +442,6 @@ export default class RouteCalculator {
       routeDetails.innerHTML = `
         <p><strong>Şehir:</strong> ${cityName}</p>
         <p><strong>Araç:</strong> ${vehicleText}</p>
-        <p><strong>Mesafe:</strong> ${distance.toFixed(2)} km</p>
-        <p><strong>Tahmini süre:</strong> ${Math.round(duration)} dakika</p>
       `;
       
       routeInfo.style.display = 'block';
