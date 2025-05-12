@@ -15,9 +15,6 @@ document.addEventListener('DOMContentLoaded', function() {
   // EventBus oluştur - tüm modüllerin iletişimi için
   const eventBus = new EventBus();
   
-  // Aktif şehir
-  let activeCity = 'balikesir'; // Varsayılan şehir
-  
   // Modülleri başlat
   const mapManager = new MapManager(config, eventBus);
   const routeSelector = new RouteSelector(config, eventBus);
@@ -29,47 +26,6 @@ document.addEventListener('DOMContentLoaded', function() {
       coords: config.map.initialView.turkey.center,
       zoom: config.map.initialView.turkey.zoom
     });
-  });
-  
-  // Seçili şehre zoom
-  document.getElementById('zoom-to-city').addEventListener('click', function() {
-    const citySelect = document.getElementById('city-select');
-    const selectedCity = citySelect.value;
-    
-    if (selectedCity && config.map.initialView[selectedCity]) {
-      eventBus.publish('map:zoomToLocation', {
-        coords: config.map.initialView[selectedCity].center,
-        zoom: config.map.initialView[selectedCity].zoom
-      });
-    }
-  });
-  
-  // Şehir seçimini izle
-  document.getElementById('city-select').addEventListener('change', function(e) {
-    const selectedCity = e.target.value;
-    activeCity = selectedCity;
-    
-    // UI güncelleme
-    document.getElementById('active-city').textContent = 
-      selectedCity.charAt(0).toUpperCase() + selectedCity.slice(1);
-    
-    // Veritabanı ismini güncelle
-    document.getElementById('active-database').textContent = 
-      `routing_${selectedCity === 'balikesir' ? 'db' : selectedCity}`;
-      
-    // Şehir değiştiğinde rotayı temizle
-    eventBus.publish('route:clear');
-    
-    // Diğer modülleri şehir değişikliği hakkında bilgilendir
-    eventBus.publish('city:changed', selectedCity);
-  });
-  
-  // Route Calculator için city:changed olayını dinleyiciyi manuel olarak oluştur
-  // (CityManager olmadığından)
-  eventBus.subscribe('city:changed', (cityId) => {
-    // RouteCalculator sınıfı içinde bu bilgiyi kullan
-    routeCalculator.setCurrentCity(cityId);
-    console.log(`Rota hesaplayıcı için şehir ayarlandı: ${cityId}`);
   });
   
   // Rota yükleniyor durumu eventbusunu dinle
@@ -100,19 +56,33 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
   
+  // Araç tiplerini etkinleştir (OSRM destekliyor)
+  const bikeRadio = document.querySelector('input[value="bicycle"]');
+  const pedestrianRadio = document.querySelector('input[value="pedestrian"]');
+  
+  if (bikeRadio) {
+    bikeRadio.disabled = false;
+    bikeRadio.parentElement.classList.remove('disabled');
+  }
+  
+  if (pedestrianRadio) {
+    pedestrianRadio.disabled = false;
+    pedestrianRadio.parentElement.classList.remove('disabled');
+  }
+  
   // Uygulama hazır olduğunda EventBus üzerinden bildir
   eventBus.publish('app:ready', {
     timestamp: Date.now()
   });
   
-  // Backend bağlantısını test et
-  testBackendConnection();
+  // OSRM bağlantısını test et
+  testOSRMConnection();
 });
 
 /**
- * Backend API bağlantısını kontrol eder
+ * OSRM bağlantısını kontrol eder
  */
-function testBackendConnection() {
+function testOSRMConnection() {
   const statusText = document.createElement('div');
   statusText.id = 'api-status';
   statusText.style.position = 'absolute';
@@ -122,20 +92,29 @@ function testBackendConnection() {
   statusText.style.borderRadius = '4px';
   statusText.style.fontSize = '12px';
   statusText.style.zIndex = '1000';
-  statusText.textContent = 'Backend kontrol ediliyor...';
+  statusText.textContent = 'OSRM bağlantısı kontrol ediliyor...';
   statusText.style.backgroundColor = '#FFF59D';
   document.body.appendChild(statusText);
   
-  // API bağlantı durumunu daha güvenli bir şekilde kontrol et
-  const checkAPI = async () => {
+  // OSRM bağlantı durumunu kontrol et
+  const checkOSRM = async () => {
     try {
-      console.log(`Backend API kontrol ediliyor: ${config.api.baseUrl}`);
+      console.log(`OSRM API kontrol ediliyor: ${config.api.baseUrl}`);
       
-      // Önce fetch ile temel bağlantıyı kontrol et
-      // `/cities` endpoint'i olmadığı için `/districts` endpoint'ini kontrol et
-      const response = await fetch(`${config.api.baseUrl}/districts`, {
+      // OSRM servis kontrolü için örnek koordinatlar kullanarak geçerli bir istek yap
+      // İstanbul'dan küçük bir örnek rota (Kadıköy -> Üsküdar)
+      const profile = 'car';
+      const testCoords = '29.0320,40.9923;29.0158,41.0265';
+      const testParams = 'overview=false';
+      
+      // Geçerli bir OSRM isteği oluştur
+      const url = `${config.api.baseUrl}${config.api.route}/${profile}/${testCoords}?${testParams}`;
+      
+      console.log(`OSRM test isteği: ${url}`);
+      
+      // Fetch ile bağlantıyı kontrol et
+      const response = await fetch(url, {
         method: 'GET',
-        // Timeout ekle
         signal: AbortSignal.timeout(5000) // 5 saniye timeout
       });
       
@@ -146,8 +125,13 @@ function testBackendConnection() {
       // Yanıtı JSON olarak parse et
       const data = await response.json();
       
+      // OSRM yanıt kontrolü
+      if (data.code !== 'Ok') {
+        throw new Error(`OSRM yanıt hatası: ${data.message || 'Bilinmeyen OSRM hatası'}`);
+      }
+      
       // Başarılı mesajı göster
-      statusText.textContent = 'Backend bağlantısı başarılı';
+      statusText.textContent = 'OSRM bağlantısı başarılı';
       statusText.style.backgroundColor = '#A5D6A7';
       
       // 3 saniye sonra mesajı gizle
@@ -157,8 +141,8 @@ function testBackendConnection() {
       }, 3000);
       
     } catch (error) {
-      console.error('Backend API kontrol hatası:', error);
-      statusText.textContent = 'Backend bağlantısı başarısız!';
+      console.error('OSRM API kontrol hatası:', error);
+      statusText.textContent = 'OSRM bağlantısı başarısız!';
       statusText.style.backgroundColor = '#EF9A9A';
       
       // Hata detaylarını göster
@@ -168,14 +152,21 @@ function testBackendConnection() {
       errorDetails.textContent = error.message || 'Bilinmeyen hata';
       statusText.appendChild(errorDetails);
       
-      // Backend URL'sini göster
+      // OSRM URL'sini göster
       const urlInfo = document.createElement('div');
       urlInfo.style.fontSize = '10px';
       urlInfo.style.marginTop = '5px';
       urlInfo.textContent = `URL: ${config.api.baseUrl}`;
       statusText.appendChild(urlInfo);
       
-      // Config dosyasını güncelleme ipucu
+      // Docker kontrol ipucu
+      const dockerTip = document.createElement('div');
+      dockerTip.style.fontSize = '10px';
+      dockerTip.style.marginTop = '5px';
+      dockerTip.textContent = 'Docker üzerinde OSRM servisinin çalıştığından emin olun.';
+      statusText.appendChild(dockerTip);
+      
+      // Config ipucu
       const configTip = document.createElement('div');
       configTip.style.fontSize = '10px';
       configTip.style.marginTop = '5px';
@@ -185,5 +176,5 @@ function testBackendConnection() {
   };
   
   // API kontrolünü başlat
-  checkAPI();
+  checkOSRM();
 }

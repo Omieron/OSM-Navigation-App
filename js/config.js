@@ -8,18 +8,6 @@ export default {
       turkey: {
         center: [35.24, 38.96],
         zoom: 6
-      },
-      istanbul: {
-        center: [29.01, 41.01],
-        zoom: 10
-      },
-      ankara: {
-        center: [32.85, 39.92],
-        zoom: 10
-      },
-      balikesir: {
-        center: [27.9, 39.6],
-        zoom: 9
       }
     },
     minZoom: 4,
@@ -43,20 +31,26 @@ export default {
     }
   },
   
-  // API endpoint'leri - WSL IP adresine göre ayarlanmalı
+  // OSRM API ayarları - Docker'da çalışan OSRM sunucusu
   api: {
-    baseUrl: 'http://172.22.226.221:8000',
-    // Şimdilik mevcut API endpoint'lerini kullanıyoruz
-    route: '/route',
-    districts: '/districts'
+    // Docker üzerinde çalışan OSRM'nin IP adresi ve port'u
+    baseUrl: 'http://localhost:5000',
+    // OSRM endpoints
+    route: '/route/v1',
+    // Profiller
+    profiles: {
+      car: 'driving',
+      bicycle: 'bike', 
+      pedestrian: 'foot'
+    },
+    // OSRM parametreleri
+    params: {
+      overview: 'full', // Detaylı rota geometrisi
+      geometries: 'geojson', // GeoJSON formatında sonuç
+      steps: true, // Adım adım navigasyon bilgileri
+      annotations: true // Mesafe ve süre bilgileri
+    }
   },
-  
-  // Desteklenen şehirler
-  cities: [
-    { id: 'balikesir', name: 'Balıkesir', default: true },
-    { id: 'istanbul', name: 'İstanbul' },
-    { id: 'ankara', name: 'Ankara' }
-  ],
   
   // Rota hesaplama ayarları
   routing: {

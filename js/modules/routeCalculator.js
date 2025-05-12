@@ -1,6 +1,5 @@
 /**
- * RouteCalculator - Rota hesaplama işlemlerini yöneten modül
- * Şehir parametre destekli
+ * RouteCalculator - OSRM ile rota hesaplama işlemlerini yöneten modül
  */
 export default class RouteCalculator {
   /**
@@ -13,21 +12,11 @@ export default class RouteCalculator {
     this.eventBus = eventBus;
     this.routeLayer = null;
     this.routeSource = new ol.source.Vector();
-    this.currentCity = 'balikesir'; // Varsayılan şehir
     
     // EventBus olaylarını dinle
     this.eventBus.subscribe('route:calculate', this.calculateRoute.bind(this));
     this.eventBus.subscribe('route:clear', this.clearRoute.bind(this));
     this.eventBus.subscribe('map:ready', this.setupRouteLayer.bind(this));
-  }
-  
-  /**
-   * Aktif şehri ayarlar
-   * @param {string} cityId - Şehir ID'si
-   */
-  setCurrentCity(cityId) {
-    this.currentCity = cityId;
-    console.log(`RouteCalculator: Aktif şehir ${this.currentCity} olarak ayarlandı`);
   }
   
   /**
@@ -68,32 +57,46 @@ export default class RouteCalculator {
     this.clearRoute();
     
     const { start, end, type } = routeRequest;
-    console.log(`Rota hesaplanıyor: ${type} tipi ile (${this.currentCity} şehri)`);
+    console.log(`Rota hesaplanıyor: ${type} tipi ile`);
     console.log(`Başlangıç: ${start[0].toFixed(6)}, ${start[1].toFixed(6)}`);
     console.log(`Bitiş: ${end[0].toFixed(6)}, ${end[1].toFixed(6)}`);
     
-    // Backend API'ye rota hesaplama isteği gönder
-    this.fetchRouteFromAPI(start, end, type);
+    // OSRM API'ye rota hesaplama isteği gönder
+    this.fetchRouteFromOSRM(start, end, type);
   }
   
   /**
-   * Backend API'den rota verisi çeker
+   * OSRM API'den rota verisi çeker
    * @param {Array} start - [lon, lat] başlangıç noktası
    * @param {Array} end - [lon, lat] bitiş noktası
-   * @param {string} type - Araç tipi (henüz backend'de kullanılmıyor)
+   * @param {string} type - Araç tipi
    */
-  fetchRouteFromAPI(start, end, type) {
+  fetchRouteFromOSRM(start, end, type) {
     // Yükleniyor durumunu bildirme
     this.eventBus.publish('route:loading', true);
     
-    // API URL'sini oluştur - şehir parametresi ekle
+    // OSRM'ye uygun profil belirle
+    const profile = this.config.api.profiles[type] || 'car';
+    
+    // OSRM'ye uygun koordinat formatı oluştur: "lon,lat;lon,lat"
+    const coordinates = `${start[0]},${start[1]};${end[0]},${end[1]}`;
+    
+    // OSRM API URL'sini oluştur
     const baseUrl = this.config.api.baseUrl;
-    const params = `start_lon=${start[0]}&start_lat=${start[1]}&end_lon=${end[0]}&end_lat=${end[1]}&city=${this.currentCity}`;
+    const routeEndpoint = this.config.api.route;
     
-    // URL'yi oluştur
-    const url = `${baseUrl}/route?${params}`;
+    // OSRM parametrelerini oluştur
+    const params = new URLSearchParams({
+      overview: this.config.api.params.overview,
+      geometries: this.config.api.params.geometries,
+      steps: this.config.api.params.steps,
+      annotations: this.config.api.params.annotations
+    }).toString();
     
-    console.log(`API isteği gönderiliyor: ${url}`);
+    // URL'yi oluştur: /route/v1/{profile}/{coordinates}?params
+    const url = `${baseUrl}${routeEndpoint}/${profile}/${coordinates}?${params}`;
+    
+    console.log(`OSRM API isteği gönderiliyor: ${url}`);
     
     // Zaman aşımı için controller
     const controller = new AbortController();
@@ -117,25 +120,25 @@ export default class RouteCalculator {
         return response.json();
       })
       .then(data => {
-        console.log('API yanıtı alındı:', data);
+        console.log('OSRM yanıtı alındı:', data);
         
-        if (data.error) {
-          console.error(`Rota hesaplama hatası: ${data.error}`);
-          this.showStatusMessage(`Rota hesaplama hatası: ${data.error}`, 'error');
+        if (data.code !== 'Ok') {
+          console.error(`Rota hesaplama hatası: ${data.message || 'Bilinmeyen hata'}`);
+          this.showStatusMessage(`Rota hesaplama hatası: ${data.message || 'OSRM rotayı hesaplayamadı'}`, 'error');
           return;
         }
         
-        // GeoJSON verisini çiz
-        this.drawRouteFromGeoJSON(data);
+        // OSRM GeoJSON verisini çiz
+        this.drawRouteFromOSRM(data);
         
         // Rota istatistiklerini hesapla
-        const routeStats = this.calculateRouteStatistics(data, type);
+        const routeStats = this.calculateOSRMRouteStatistics(data, type);
         
         // Route hesaplanması eventini yayınla
         this.eventBus.publish('route:calculated', routeStats);
         
         // Rota bilgilerini göster
-        this.showRouteInformation(routeStats.distance, routeStats.duration, type, this.currentCity);
+        this.showRouteInformation(routeStats.distance, routeStats.duration, type);
       })
       .catch(error => {
         clearTimeout(timeoutId); // Hata durumunda da zamanlayıcıyı temizle
@@ -143,19 +146,19 @@ export default class RouteCalculator {
         // İstek zaman aşımına uğradı mı?
         if (error.name === 'AbortError') {
           console.error('API isteği zaman aşımına uğradı.');
-          this.showStatusMessage('API yanıt vermedi. Lütfen backend bağlantınızı kontrol edin.', 'error');
+          this.showStatusMessage('OSRM yanıt vermedi. OSRM Docker servisinin çalıştığından emin olun.', 'error');
           return;
         }
         
         // CORS hatası için özel mesaj
         if (error.message.includes('CORS') || error.message.includes('Failed to fetch')) {
           console.error('CORS hatası veya bağlantı sorunu:', error);
-          this.showStatusMessage('CORS hatası! Backend bağlantı sorunu.', 'error');
+          this.showStatusMessage('CORS hatası! OSRM servisi bağlantı sorunu.', 'error');
           return;
         }
         
         console.error('Rota hesaplama hatası:', error);
-        this.showStatusMessage(`Rota hesaplama sırasında bir hata oluştu`, 'error');
+        this.showStatusMessage(`Rota hesaplama sırasında bir hata oluştu: ${error.message}`, 'error');
       })
       .finally(() => {
         // Yükleniyor durumunu kapat
@@ -198,46 +201,50 @@ export default class RouteCalculator {
   }
   
   /**
-   * GeoJSON formatındaki rota verisini OpenLayers haritasında çizer
-   * @param {Object} geoJSON - Backend'den gelen GeoJSON verisi
+   * OSRM'den gelen yanıtı işleyerek rotayı çizer
+   * @param {Object} osrmResponse - OSRM API'den gelen yanıt
    */
-  drawRouteFromGeoJSON(geoJSON) {
+  drawRouteFromOSRM(osrmResponse) {
     try {
-      // Gelen veriyi kontrol et
-      if (!geoJSON || !geoJSON.features || geoJSON.features.length === 0) {
-        console.warn('Geçerli GeoJSON verisi bulunamadı:', geoJSON);
+      // Yanıtı kontrol et
+      if (!osrmResponse || !osrmResponse.routes || osrmResponse.routes.length === 0) {
+        console.warn('Geçerli OSRM rota verisi bulunamadı:', osrmResponse);
         return;
       }
       
-      console.log('İşlenecek GeoJSON:', geoJSON);
+      // OSRM'nin ilk rotasını al (varsayılan olarak en iyi rota)
+      const route = osrmResponse.routes[0];
+      
+      // GeoJSON yapısı oluştur
+      const routeGeoJSON = {
+        type: 'Feature',
+        properties: {
+          distance: route.distance,
+          duration: route.duration
+        },
+        geometry: route.geometry // OSRM'den 'geometries=geojson' parametresi ile uyumlu
+      };
+      
+      console.log('İşlenecek GeoJSON (OSRM):', routeGeoJSON);
       
       // GeoJSON formatını OpenLayers formatına dönüştür
-      const features = new ol.format.GeoJSON().readFeatures(geoJSON, {
+      const feature = new ol.format.GeoJSON().readFeature(routeGeoJSON, {
         featureProjection: 'EPSG:3857' // Web Mercator projeksiyon
       });
       
-      if (features.length === 0) {
-        console.warn('GeoJSON verisi içinde çizilebilir feature bulunamadı.');
-        return;
-      }
+      // Feature'a tip ekle
+      feature.set('type', 'route');
       
-      // Her feature'a tip ekle
-      features.forEach(feature => {
-        feature.set('type', 'route');
-        // Aktif şehir bilgisini de ekle
-        feature.set('city', this.currentCity);
-      });
+      // Feature'ı source'a ekle
+      this.routeSource.addFeature(feature);
       
-      // Featuları source'a ekle
-      features.forEach(feature => this.routeSource.addFeature(feature));
-      
-      console.log(`${features.length} rota parçası çizildi`);
+      console.log('OSRM rotası çizildi');
       
       // Haritayı rota boyutuna uygun şekilde yakınlaştır
       this.zoomToRoute();
     } catch (error) {
-      console.error('GeoJSON parse hatası:', error);
-      console.error('Hatalı veri:', geoJSON);
+      console.error('OSRM verisi işleme hatası:', error);
+      console.error('Hatalı veri:', osrmResponse);
     }
   }
   
@@ -259,124 +266,33 @@ export default class RouteCalculator {
   }
   
   /**
-   * Rota istatistiklerini hesaplar
-   * @param {Object} geoJSON - GeoJSON rota verisi
+   * OSRM yanıtından rota istatistikleri hesaplar
+   * @param {Object} osrmResponse - OSRM API yanıtı
    * @param {string} type - Araç tipi
-   * @returns {Object} - {distance, duration, type, coordinates, city}
+   * @returns {Object} - {distance, duration, type, coordinates}
    */
-  calculateRouteStatistics(geoJSON, type) {
-    let totalDistance = 0;
+  calculateOSRMRouteStatistics(osrmResponse, type) {
+    // OSRM'in ilk rotasını al
+    const route = osrmResponse.routes[0];
+    
+    // Mesafeyi km cinsine çevir (OSRM metre olarak döndürür)
+    const distanceKm = route.distance / 1000;
+    
+    // Süreyi dakika cinsine çevir (OSRM saniye olarak döndürür)
+    const durationMinutes = Math.round(route.duration / 60);
+    
+    // Rota koordinatlarını al
     let coordinates = [];
-    
-    // GeoJSON'dan mesafe ve koordinat bilgilerini topla
-    if (geoJSON && geoJSON.features) {
-      geoJSON.features.forEach(feature => {
-        // Özelliklerden mesafe bilgisini al (varsa)
-        if (feature.properties && feature.properties.cost) {
-          totalDistance += parseFloat(feature.properties.cost);
-        }
-        
-        // Koordinatları topla
-        if (feature.geometry && feature.geometry.coordinates) {
-          if (feature.geometry.type === 'LineString') {
-            coordinates = coordinates.concat(feature.geometry.coordinates);
-          }
-        }
-      });
+    if (route.geometry && route.geometry.coordinates) {
+      coordinates = route.geometry.coordinates;
     }
-    
-    // API'den gelen verinin birimini kontrol et ve gerekirse dönüştür
-    // Eğer mesafe çok küçükse (örneğin < 0.1), muhtemelen birim metre cinsindendir
-    let distanceKm = totalDistance;
-    if (totalDistance > 1000) {
-      distanceKm = totalDistance / 1000; // Metreyi km'ye çevir
-    } else if (totalDistance < 0.1 && coordinates.length > 1) {
-      // Çok küçük bir değer geldi, koordinatlardan mesafeyi kendimiz hesaplayalım
-      distanceKm = this.calculateDistanceFromCoordinates(coordinates);
-    }
-    
-    // Minimum değer kontrolü
-    distanceKm = Math.max(distanceKm, 0.1); // En az 100m olsun
-    
-    // Tahmini süreyi hesapla
-    const duration = this.estimateDuration(distanceKm, type);
     
     return {
       distance: distanceKm,
-      duration: duration,
+      duration: durationMinutes,
       type: type,
-      coordinates: coordinates,
-      city: this.currentCity
+      coordinates: coordinates
     };
-  }
-  
-  /**
-   * Koordinatlardan mesafe hesaplar (Haversine formülü)
-   * @param {Array} coordinates - [[lon1, lat1], [lon2, lat2], ...] formatında koordinatlar
-   * @returns {number} - Kilometre cinsinden mesafe
-   */
-  calculateDistanceFromCoordinates(coordinates) {
-    if (!coordinates || coordinates.length < 2) return 0.1; // En az 100m
-    
-    let totalDistance = 0;
-    
-    for (let i = 0; i < coordinates.length - 1; i++) {
-      const [lon1, lat1] = coordinates[i];
-      const [lon2, lat2] = coordinates[i + 1];
-      
-      // Haversine formülü ile iki nokta arası mesafe (km cinsinden)
-      const R = 6371; // Dünya yarıçapı (km)
-      const dLat = this.deg2rad(lat2 - lat1);
-      const dLon = this.deg2rad(lon2 - lon1);
-      const a = 
-        Math.sin(dLat/2) * Math.sin(dLat/2) +
-        Math.cos(this.deg2rad(lat1)) * Math.cos(this.deg2rad(lat2)) * 
-        Math.sin(dLon/2) * Math.sin(dLon/2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-      const distance = R * c;
-      
-      totalDistance += distance;
-    }
-    
-    // Minimum mesafe kontrolü
-    return Math.max(totalDistance, 0.1); // En az 100m
-  }
-  
-  /**
-   * Derece cinsinden açıyı radyana çevirir
-   * @param {number} deg - Derece
-   * @returns {number} - Radyan
-   */
-  deg2rad(deg) {
-    return deg * (Math.PI/180);
-  }
-  
-  /**
-   * Mesafeye göre tahmini süreyi hesaplar
-   * @param {number} distance - Kilometre cinsinden mesafe
-   * @param {string} type - Araç tipi
-   * @returns {number} - Dakika cinsinden tahmini süre
-   */
-  estimateDuration(distance, type) {
-    const speeds = {
-      car: 30, // Şehir içi ortalama hız (km/saat)
-      bicycle: 15, // km/saat
-      pedestrian: 5 // km/saat
-    };
-    
-    // Araç tipine göre hız seç veya varsayılan olarak araba hızını kullan
-    const speed = speeds[type] || speeds.car;
-    
-    // Süreyi hesapla (saat * 60 = dakika)
-    let duration = (distance / speed) * 60;
-    
-    // İstanbul gibi yoğun trafikli şehirlerde ek süre
-    if (this.currentCity === 'istanbul' && type === 'car') {
-      duration *= 1.5; // %50 trafik faktörü
-    }
-    
-    // Minimum süre kontrolü (en az 1 dakika)
-    return Math.max(Math.round(duration), 1);
   }
   
   /**
@@ -384,9 +300,8 @@ export default class RouteCalculator {
    * @param {number} distance - Mesafe (km)
    * @param {number} duration - Süre (dakika)
    * @param {string} vehicleType - Araç tipi
-   * @param {string} city - Şehir adı
    */
-  showRouteInformation(distance, duration, vehicleType, city) {
+  showRouteInformation(distance, duration, vehicleType) {
     // Araç tipine göre metni belirle
     let vehicleText;
     
@@ -399,9 +314,6 @@ export default class RouteCalculator {
     } else {
       vehicleText = 'Araç';
     }
-    
-    // Şehir adını formatla
-    const cityName = city.charAt(0).toUpperCase() + city.slice(1);
     
     // Mesafeyi formatla
     let distanceText;
@@ -426,11 +338,11 @@ export default class RouteCalculator {
     }
     
     // Konsola bilgileri yazdır (debug için)
-    console.log(`Rota bilgileri: ${cityName}, ${vehicleText}, ${distanceText}, ${durationText}`);
+    console.log(`Rota bilgileri (OSRM): ${vehicleText}, ${distanceText}, ${durationText}`);
     
     // Rota bilgilerini status mesajında göster
     this.showStatusMessage(
-      `${cityName} - ${vehicleText} ile: ${distanceText}, ${durationText}`,
+      `${vehicleText} ile: ${distanceText}, ${durationText}`,
       'success'
     );
     
@@ -440,8 +352,9 @@ export default class RouteCalculator {
     
     if (routeInfo && routeDetails) {
       routeDetails.innerHTML = `
-        <p><strong>Şehir:</strong> ${cityName}</p>
         <p><strong>Araç:</strong> ${vehicleText}</p>
+        <p><strong>Mesafe:</strong> ${distanceText}</p>
+        <p><strong>Tahmini Süre:</strong> ${durationText}</p>
       `;
       
       routeInfo.style.display = 'block';

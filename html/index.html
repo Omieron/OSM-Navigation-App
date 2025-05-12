@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Türkiye Şehirleri Navigasyon Sistemi</title>
+  <title>Türkiye Navigasyon Sistemi - OSRM</title>
   
   <!-- OpenLayers CSS -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v7.4.0/ol.css">
@@ -17,43 +17,27 @@
   <div id="map"></div>
   
   <!-- Yükleniyor overlay - modern versiyonu -->
-
-<div id="loading-overlay" class="loading-overlay" style="display: none;">
-  <div class="spinner-container">
-    <div class="spinner">
-      <div class="pin"></div>
+  <div id="loading-overlay" class="loading-overlay" style="display: none;">
+    <div class="spinner-container">
+      <div class="spinner">
+        <div class="pin"></div>
+      </div>
+      <div class="spinner-text">Rota hesaplanıyor</div>
+      <div class="spinner-info">OSRM ile optimum rotanız belirleniyor, lütfen bekleyin</div>
     </div>
-    <div class="spinner-text">Rota hesaplanıyor</div>
-    <div class="spinner-info">Optimum rotanız belirleniyor, lütfen bekleyin</div>
   </div>
-</div>
   
   <!-- Harita kontrolleri -->
   <div class="controls map-controls">
     <h3>Harita Görünümü</h3>
     <div class="button-group">
       <button id="zoom-turkey">Türkiye'yi Göster</button>
-      
-      <!-- Şehir seçimi -->
-      <div class="city-selector">
-        <label for="city-select">Şehir Seçin:</label>
-        <select id="city-select">
-          <option value="balikesir" selected>Balıkesir</option>
-          <option value="istanbul">İstanbul</option>
-          <option value="ankara">Ankara</option>
-        </select>
-      </div>
-      
-      <button id="zoom-to-city">Seçili Şehri Göster</button>
     </div>
   </div>
   
   <!-- Rota kontrolleri -->
   <div class="controls route-controls">
     <h3>Rota Seçimi</h3>
-    <div class="city-indicator">
-      Aktif Şehir: <span id="active-city">Balıkesir</span>
-    </div>
     <div id="selection-status" class="status-text">Rota seçimi için bir işlem seçin</div>
     <div class="button-group">
       <button id="select-start" class="route-button start">Başlangıç Noktası Seç</button>
@@ -67,12 +51,12 @@
             <input type="radio" name="vehicle-type" value="car" checked>
             <span>Araba</span>
           </label>
-          <label class="disabled">
-            <input type="radio" name="vehicle-type" value="bicycle" disabled>
+          <label>
+            <input type="radio" name="vehicle-type" value="bicycle">
             <span>Bisiklet</span>
           </label>
-          <label class="disabled">
-            <input type="radio" name="vehicle-type" value="pedestrian" disabled>
+          <label>
+            <input type="radio" name="vehicle-type" value="pedestrian">
             <span>Yaya</span>
           </label>
         </div>
@@ -89,8 +73,7 @@
 
   <!-- Backend bilgi kutusu -->
   <div class="api-info">
-    <p>Backend: WSL üzerinde FastAPI (Port: 8000)</p>
-    <p>Aktif Veritabanı: <span id="active-database">routing_db</span></p>
+    <p>OSRM: Docker üzerinde (Port: 5000) - Türkiye Haritası</p>
   </div>
 
   <!-- OpenLayers JS -->
