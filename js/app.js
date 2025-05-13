@@ -7,7 +7,7 @@ import config from './config.js';
 import MapManager from './modules/mapManager.js';
 import RouteSelector from './modules/routeSelector.js';
 import RouteCalculator from './modules/routeCalculator.js';
-import TrafficManager from './modules/TrafficManager.js' // Yeni trafik modülü
+import TrafficManager from './modules/TrafficManager.js'; // Ana trafik yöneticisi
 
 // Sayfa yüklendiğinde çalıştır
 document.addEventListener('DOMContentLoaded', function() {
@@ -187,7 +187,7 @@ function testOSRMConnection() {
  */
 function checkTomTomAPIKey() {
   // API anahtarının ayarlanıp ayarlanmadığını kontrol et
-  if (!config.traffic.apiKey || config.traffic.apiKey === 'YOUR_TOMTOM_API_KEY_HERE') {
+  if (!config.traffic || !config.traffic.apiKey || config.traffic.apiKey === 'YOUR_TOMTOM_API_KEY_HERE') {
     console.warn('TomTom API anahtarı ayarlanmamış!');
     
     // Uyarı mesajı oluştur
