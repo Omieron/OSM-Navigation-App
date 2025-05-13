@@ -1,5 +1,5 @@
 /**
- * TrafficManager - Sadece çizilen rotayı renklendirecek basit ve hızlı versiyon
+ * TrafficManager - Trafik durumuna göre süre tahmini gösteren versiyon
  */
 export default class TrafficManager {
   /**
@@ -16,6 +16,8 @@ export default class TrafficManager {
     this.routeSource = null;     // Rota vektör kaynağı
     this.routeLayer = null;      // Rota katmanı
     this.originalRouteLayer = null; // Orijinal rota katmanı referansı
+    this.originalDuration = 0;   // Trafik olmadan orjinal süre
+    this.trafficDuration = 0;    // Trafik varlığında süre
     
     // EventBus olaylarını dinle
     this.eventBus.subscribe('map:ready', this.initialize.bind(this));
@@ -89,6 +91,9 @@ export default class TrafficManager {
     if (!routeData || !routeData.coordinates || routeData.coordinates.length === 0) return;
     
     try {
+      // Orjinal süreyi kaydet
+      this.originalDuration = routeData.duration;
+      
       // Mevcut rotayı kaydet
       this.currentRoute = routeData;
       
@@ -123,8 +128,8 @@ export default class TrafficManager {
         // Trafik rota katmanını göster
         this.routeLayer.setVisible(true);
         
-        // Rotanın trafik bilgisini almak için TomTom API'ye istek yap
-        this.fetchRouteTrafficInfo(routeData);
+        // Rotanın trafik bilgisini almak için hesaplama yap
+        this.calculateTrafficRouteInfo(routeData);
       }
       
     } catch (error) {
@@ -133,92 +138,168 @@ export default class TrafficManager {
   }
   
   /**
-   * TomTom API'den rota üzerindeki trafik bilgisini alır
+   * Rota üzerindeki trafik durumunu hesaplar ve gösterir
    * @param {Object} routeData - Rota bilgileri
    */
-  fetchRouteTrafficInfo(routeData) {
-    // TomTom API Flow API endpoint'i (örnek)
-    const baseUrl = `https://api.tomtom.com/traffic/services/4/flowSegmentData`;
-    
-    // Rotadaki her bir segment için trafik durumunu belirlemek için:
-    // 1. Rotayı (koordinat sayısına bağlı olarak) segmentlere böl
-    // 2. Her segment için trafik verisi istemek yerine, görsel olarak rotayı renklendireceğiz
-    
-    // Rotadaki trafik durumunu belirleyen bazı değerleri rota uzunluğuna göre tahmin et
-    // Bu sadece görsel amaçlıdır, gerçek trafik verisi değildir
-    const distance = routeData.distance; // km cinsinden
-    const duration = routeData.duration; // dakika cinsinden
-    
-    // Ortalama hız hesapla (km/saat)
-    const averageSpeed = (distance / (duration / 60));
-    
-    // Genel trafik durumunu belirle
-    let trafficCondition;
-    if (averageSpeed > 70) {
-      trafficCondition = 'good'; // İyi trafik (yeşil)
-    } else if (averageSpeed > 40) {
-      trafficCondition = 'moderate'; // Orta trafik (sarı)
-    } else {
-      trafficCondition = 'bad'; // Kötü trafik (kırmızı)
-    }
-    
-    // Rota feature'ına trafik durumunu ekle
-    const routeFeature = this.routeSource.getFeatures()[0];
-    if (routeFeature) {
-      routeFeature.set('trafficCondition', trafficCondition);
+  calculateTrafficRouteInfo(routeData) {
+    try {
+      // Rotadaki trafik durumunu belirleyen bazı değerleri hesapla/tahmin et
+      const distance = routeData.distance; // km cinsinden
+      const normalDuration = routeData.duration; // dakika cinsinden (normal süre)
       
-      // Rastgele segmentlere sınırlı oranda farklı trafik durumları atayarak daha gerçekçi görünüm sağla
-      // Gerçek API verileriyle bu kısım daha doğru olacaktır
-      const coordinates = routeFeature.getGeometry().getCoordinates();
-      const segmentCount = Math.min(10, Math.floor(coordinates.length / 5)); // Her 5 noktada bir segment
+      // Trafik yoğunluğuna göre süre faktörü hesapla
+      // Bu, trafik varlığında sürenin nasıl değiştiğini belirler
+      let trafficFactor;
       
-      // Segmentlerin trafik durumlarını tutan array
-      const segmentTraffic = [];
+      // Trafik faktörünü hesapla:
+      // 1. Şehir içi/şehir dışı rota tespiti
+      const isUrbanRoute = distance < 20; // 20 km'den kısa rotalar genelde şehir içi
       
-      // Varsayılan olarak tüm segmentleri genel durum ile doldur
-      for (let i = 0; i < segmentCount; i++) {
-        segmentTraffic.push(trafficCondition);
+      // 2. Trafik yoğunluğunu belirle
+      // Şehir içi rotalar için farklı, şehir dışı için farklı faktörler
+      if (isUrbanRoute) {
+        // Şehir içi rotalar: Saat kontrolü (trafik saati mi?)
+        const currentHour = new Date().getHours();
+        const isRushHour = (currentHour >= 7 && currentHour <= 9) || 
+                          (currentHour >= 17 && currentHour <= 19);
+        
+        if (isRushHour) {
+          // Yoğun trafik saati
+          trafficFactor = 1.4 + Math.random() * 0.4; // 1.4x - 1.8x arası
+        } else {
+          // Normal saatler
+          trafficFactor = 1.1 + Math.random() * 0.3; // 1.1x - 1.4x arası
+        }
+      } else {
+        // Şehir dışı rotalar: Genelde daha az trafik
+        trafficFactor = 1.05 + Math.random() * 0.15; // 1.05x - 1.2x arası
       }
       
-      // Rastgele olarak bazı segmentlerin trafik durumunu değiştir (daha gerçekçi görünüm)
-      const conditions = ['good', 'moderate', 'bad'];
-      const changeCount = Math.min(3, Math.floor(segmentCount / 3)); // En fazla segmentlerin 1/3'ü değişsin
+      // Trafik varlığında tahmini süreyi hesapla
+      this.trafficDuration = Math.round(normalDuration * trafficFactor);
       
-      for (let i = 0; i < changeCount; i++) {
-        const randomSegment = Math.floor(Math.random() * segmentCount);
-        const randomCondition = conditions[Math.floor(Math.random() * conditions.length)];
-        segmentTraffic[randomSegment] = randomCondition;
+      // Rota feature'ına trafik faktörünü ekle
+      const routeFeature = this.routeSource.getFeatures()[0];
+      if (routeFeature) {
+        // Trafik faktörüne göre genel durumu belirle
+        let trafficCondition;
+        if (trafficFactor < 1.15) {
+          trafficCondition = 'good'; // İyi trafik (yeşil)
+        } else if (trafficFactor < 1.4) {
+          trafficCondition = 'moderate'; // Orta trafik (sarı)
+        } else {
+          trafficCondition = 'bad'; // Kötü trafik (kırmızı)
+        }
+        
+        // Feature özelliklerini ayarla
+        routeFeature.set('trafficCondition', trafficCondition);
+        routeFeature.set('trafficFactor', trafficFactor);
+        
+        // Rota segmentlerini oluştur ve her birine rastgele trafik durumu ata
+        // Bu, daha gerçekçi bir görsel sağlar
+        const coordinates = routeFeature.getGeometry().getCoordinates();
+        const segmentCount = Math.min(10, Math.floor(coordinates.length / 5)); // Her 5 noktada bir segment
+        
+        // Segmentlerin trafik durumlarını tutan array
+        const segmentTraffic = [];
+        const segmentFactors = [];
+        
+        // Segment trafik durumlarını oluştur
+        for (let i = 0; i < segmentCount; i++) {
+          // Her segment için trafik durumunu belirle
+          // Ana trafiğe yakın, ama biraz rastgele varyasyon ekle
+          const segFactor = trafficFactor * (0.85 + Math.random() * 0.3);
+          segmentFactors.push(segFactor);
+          
+          let segCondition;
+          if (segFactor < 1.15) {
+            segCondition = 'good';
+          } else if (segFactor < 1.4) {
+            segCondition = 'moderate';
+          } else {
+            segCondition = 'bad';
+          }
+          
+          segmentTraffic.push(segCondition);
+        }
+        
+        // Feature'a segment bilgilerini ekle
+        routeFeature.set('segmentTraffic', segmentTraffic);
+        routeFeature.set('segmentFactors', segmentFactors);
+        routeFeature.set('segmentCount', segmentCount);
+        
+        // Görselleştirmeyi güncelle
+        this.routeLayer.changed();
+        
+        // Rota bilgilerini güncelle - trafik varlığında süre değişimini göster
+        this.updateRouteInfoWithTraffic(distance, normalDuration, this.trafficDuration);
+        
+        // Bilgi mesajı
+        this.showStatusMessage(
+          `Trafik süresi: ${this.formatDuration(this.trafficDuration)} (+${Math.round((trafficFactor-1)*100)}%)`, 
+          'success'
+        );
       }
-      
-      // Feature'a segment trafik bilgisini ekle
-      routeFeature.set('segmentTraffic', segmentTraffic);
-      
-      // Segment sayısını ekle
-      routeFeature.set('segmentCount', segmentCount);
-      
-      // Görselleştirmeyi güncelle
-      this.routeLayer.changed();
-      
-      // Bilgi mesajı
-      this.showStatusMessage(`Rota üzerinde trafik görüntüleniyor: ${this.getTrafficDescription(trafficCondition)}`, 'success');
+    } catch (error) {
+      console.error('Trafik süresi hesaplama hatası:', error);
     }
   }
   
   /**
-   * Trafik durumuna göre açıklama döndürür
-   * @param {string} condition - Trafik durumu
-   * @returns {string} Trafik açıklaması
+   * Dakika cinsinden süreyi formatlı olarak döndürür
+   * @param {number} minutes - Dakika cinsinden süre
+   * @returns {string} Formatlanmış süre
    */
-  getTrafficDescription(condition) {
-    switch (condition) {
-      case 'good':
-        return 'Trafik akıcı';
-      case 'moderate':
-        return 'Trafik orta yoğunlukta';
-      case 'bad':
-        return 'Trafik yoğun';
-      default:
-        return 'Trafik durumu bilinmiyor';
+  formatDuration(minutes) {
+    if (minutes < 60) {
+      return `${minutes} dakika`;
+    } else {
+      const hours = Math.floor(minutes / 60);
+      const mins = minutes % 60;
+      return `${hours} saat${mins > 0 ? ` ${mins} dakika` : ''}`;
+    }
+  }
+  
+  /**
+   * Rota bilgi panelini trafik verisiyle günceller
+   * @param {number} distance - Mesafe (km)
+   * @param {number} normalDuration - Normal süre (dakika)
+   * @param {number} trafficDuration - Trafik varlığında süre (dakika)
+   */
+  updateRouteInfoWithTraffic(distance, normalDuration, trafficDuration) {
+    const routeDetails = document.getElementById('route-details');
+    
+    if (routeDetails) {
+      // Orijinal rota bilgilerini oluştur
+      const durationDiff = trafficDuration - normalDuration;
+      const durationPercent = Math.round((trafficDuration / normalDuration - 1) * 100);
+      
+      // Mesafeyi formatla
+      let distanceText;
+      if (distance < 1) {
+        distanceText = `${Math.round(distance * 1000)} m`;
+      } else {
+        distanceText = `${distance.toFixed(1)} km`;
+      }
+      
+      // HTML içeriğini güncelle
+      routeDetails.innerHTML = `
+        <p><strong>Araç:</strong> Araba</p>
+        <p><strong>Mesafe:</strong> ${distanceText}</p>
+        <p><strong>Normal Süre:</strong> ${this.formatDuration(normalDuration)}</p>
+        <p><strong>Trafik Varlığında:</strong> 
+          <span style="color: ${durationDiff > 0 ? '#f44336' : '#4CAF50'}">
+            ${this.formatDuration(trafficDuration)}
+            ${durationDiff !== 0 ? ` (${durationDiff > 0 ? '+' : ''}${durationPercent}%)` : ''}
+          </span>
+        </p>
+      `;
+      
+      // Rota bilgi panelini görünür yap
+      const routeInfo = document.getElementById('route-info');
+      if (routeInfo) {
+        routeInfo.style.display = 'block';
+      }
     }
   }
   
@@ -227,6 +308,8 @@ export default class TrafficManager {
    */
   onRouteClear() {
     this.currentRoute = null;
+    this.originalDuration = 0;
+    this.trafficDuration = 0;
     
     // Rota source'u temizle
     if (this.routeSource) {
@@ -352,12 +435,26 @@ export default class TrafficManager {
       if (this.routeSource.getFeatures().length > 0) {
         const feature = this.routeSource.getFeatures()[0];
         if (!feature.get('trafficCondition')) {
-          this.fetchRouteTrafficInfo(this.currentRoute);
+          this.calculateTrafficRouteInfo(this.currentRoute);
+        } else {
+          // Rota bilgilerini güncelle - trafik varlığında süre değişimini göster
+          this.updateRouteInfoWithTraffic(
+            this.currentRoute.distance, 
+            this.originalDuration, 
+            this.trafficDuration
+          );
         }
       }
       
       // Bilgi mesajı
-      this.showStatusMessage('Rota üzerinde trafik gösteriliyor', 'success');
+      if (this.trafficDuration > 0) {
+        this.showStatusMessage(
+          `Trafik süresi: ${this.formatDuration(this.trafficDuration)}`, 
+          'success'
+        );
+      } else {
+        this.showStatusMessage('Rota üzerinde trafik gösteriliyor', 'success');
+      }
     }
     // Trafik kapalıysa veya rota yoksa, orijinal katmanı göster, trafik katmanını gizle
     else {
@@ -371,8 +468,29 @@ export default class TrafficManager {
         this.originalRouteLayer.setVisible(true);
       }
       
+      // Trafik kapatıldıysa, orijinal rota bilgilerini göster
+      if (!this.isTrafficVisible && this.currentRoute) {
+        const routeDetails = document.getElementById('route-details');
+        if (routeDetails) {
+          // Mesafeyi formatla
+          let distanceText;
+          if (this.currentRoute.distance < 1) {
+            distanceText = `${Math.round(this.currentRoute.distance * 1000)} m`;
+          } else {
+            distanceText = `${this.currentRoute.distance.toFixed(1)} km`;
+          }
+          
+          // HTML içeriğini güncelle - sadece orijinal bilgiler
+          routeDetails.innerHTML = `
+            <p><strong>Araç:</strong> Araba</p>
+            <p><strong>Mesafe:</strong> ${distanceText}</p>
+            <p><strong>Tahmini Süre:</strong> ${this.formatDuration(this.originalDuration)}</p>
+          `;
+        }
+      }
+      
       // Trafik kapatıldı mesajı
-      if (!this.isTrafficVisible) {
+      if (!this.isTrafficVisible && this.currentRoute) {
         this.showStatusMessage('Trafik gösterimi kapatıldı', 'info');
       }
       // Rota yok mesajı
