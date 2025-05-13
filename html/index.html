@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Türkiye Navigasyon Sistemi - OSRM</title>
+  <title>Türkiye Navigasyon Sistemi - OSRM ve TomTom Trafik</title>
   
   <!-- OpenLayers CSS -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v7.4.0/ol.css">
@@ -32,6 +32,24 @@
     <h3>Harita Görünümü</h3>
     <div class="button-group">
       <button id="zoom-turkey">Türkiye'yi Göster</button>
+      <button id="toggle-traffic" class="traffic-button">Trafik Katmanını Aç</button>
+    </div>
+    
+    <!-- Trafik Gösterge Paneli -->
+    <div class="traffic-legend">
+      <h4>Trafik Durumu</h4>
+      <div class="legend-item">
+        <span class="legend-color" style="background-color: rgba(0, 176, 80, 0.8);"></span>
+        <span class="legend-text">Akıcı Trafik</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-color" style="background-color: rgba(255, 192, 0, 0.8);"></span>
+        <span class="legend-text">Orta Yoğunlukta</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-color" style="background-color: rgba(237, 28, 36, 0.8);"></span>
+        <span class="legend-text">Yoğun Trafik</span>
+      </div>
     </div>
   </div>
   
@@ -43,11 +61,9 @@
     <button id="select-start" class="route-button start">Başlangıç Noktası Seç</button>
     <button id="select-end" class="route-button end">Bitiş Noktası Seç</button>
     <button id="clear-route" class="route-button clear">Temizle</button>
-    
-    <!-- Rota hesapla butonu kaldırıldı -->
   </div>
   
-   <div id="route-info" class="route-info">
+  <div id="route-info" class="route-info">
     <h4>Rota Bilgileri</h4>
     <div id="route-details">Henüz rota hesaplanmadı</div>
   </div>
@@ -55,7 +71,7 @@
 
   <!-- Backend bilgi kutusu -->
   <div class="api-info">
-    <p>OSRM: Docker üzerinde (Port: 5000) - Türkiye Haritası</p>
+    <p>OSRM: Docker üzerinde (Port: 5000) - TomTom Trafik API</p>
   </div>
 
   <!-- OpenLayers JS -->

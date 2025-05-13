@@ -64,5 +64,27 @@ export default {
     lineWidth: 6,
     lineHighlightColor: '#FF8800',
     lineHighlightWidth: 8
+  },
+  
+  // TomTom Trafik API ayarları
+  traffic: {
+    // TomTom API anahtarı
+    apiKey: '**********',
+    // API endpointleri - güncellenmiş sürüm
+    baseUrl: 'https://api.tomtom.com',
+    flowSegmentData: '/traffic/services/5/flowSegmentData', // Versiyon 5 kullanın
+    // Trafik katmanı renkleri
+    colors: {
+      good: 'rgba(0, 176, 80, 0.8)',      // Yeşil (akıcı trafik)
+      moderate: 'rgba(255, 192, 0, 0.8)',  // Sarı (orta yoğunluk)
+      bad: 'rgba(237, 28, 36, 0.8)'        // Kırmızı (yoğun trafik) 
+    },
+    // Trafik çizgi kalınlığı
+    lineWidth: 4,
+    // Minimum zoom seviyesi (bu seviyeden daha uzakta trafik verileri çekilmeyecek)
+    minZoomLevel: 10,
+    // Trafik verilerinin otomatik yenilenme süresi (ms cinsinden)
+    refreshInterval: 300000, // 5 dakika
+    routeBufferWidth: 30,
   }
 };

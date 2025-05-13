@@ -7,6 +7,7 @@ import config from './config.js';
 import MapManager from './modules/mapManager.js';
 import RouteSelector from './modules/routeSelector.js';
 import RouteCalculator from './modules/routeCalculator.js';
+import TrafficManager from './modules/TrafficManager.js' // Yeni trafik modülü
 
 // Sayfa yüklendiğinde çalıştır
 document.addEventListener('DOMContentLoaded', function() {
@@ -19,6 +20,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const mapManager = new MapManager(config, eventBus);
   const routeSelector = new RouteSelector(config, eventBus);
   const routeCalculator = new RouteCalculator(config, eventBus);
+  const trafficManager = new TrafficManager(config, eventBus); // Trafik yöneticisini başlat
   
   // Zoom butonlarını bağla
   document.getElementById('zoom-turkey').addEventListener('click', function() {
@@ -28,14 +30,17 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
   
+  // Trafik butonunu bağla
+  document.getElementById('toggle-traffic').addEventListener('click', function() {
+    eventBus.publish('traffic:toggle');
+  });
+  
   // Rota yükleniyor durumu eventbusunu dinle
   eventBus.subscribe('route:loading', function(isLoading) {
     const loadingOverlay = document.getElementById('loading-overlay');
     
     if (isLoading) {
       // Hesaplama başladığında
-      // Rota hesapla butonu referansı kaldırıldı
-      
       // Overlay'i göster
       loadingOverlay.style.display = 'flex';
       
@@ -43,13 +48,25 @@ document.addEventListener('DOMContentLoaded', function() {
       document.body.classList.add('loading');
     } else {
       // Hesaplama bittiğinde
-      // Rota hesapla butonu referansı kaldırıldı
-      
       // Overlay'i gizle
       loadingOverlay.style.display = 'none';
       
       // Tıklama eventlerini tekrar aktif et
       document.body.classList.remove('loading');
+    }
+  });
+  
+  // Trafik yükleniyor durumu eventbusunu dinle
+  eventBus.subscribe('traffic:loading', function(isLoading) {
+    // Trafik verisi yüklenirken basit bir gösterge
+    const trafficButton = document.getElementById('toggle-traffic');
+    
+    if (isLoading && trafficButton) {
+      trafficButton.classList.add('loading');
+      trafficButton.disabled = true;
+    } else if (trafficButton) {
+      trafficButton.classList.remove('loading');
+      trafficButton.disabled = false;
     }
   });
   
@@ -60,6 +77,9 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // OSRM bağlantısını test et
   testOSRMConnection();
+  
+  // TomTom API anahtarını kontrol et
+  checkTomTomAPIKey();
 });
 
 /**
@@ -160,4 +180,54 @@ function testOSRMConnection() {
   
   // API kontrolünü başlat
   checkOSRM();
+}
+
+/**
+ * TomTom API anahtarını kontrol eder
+ */
+function checkTomTomAPIKey() {
+  // API anahtarının ayarlanıp ayarlanmadığını kontrol et
+  if (!config.traffic.apiKey || config.traffic.apiKey === 'YOUR_TOMTOM_API_KEY_HERE') {
+    console.warn('TomTom API anahtarı ayarlanmamış!');
+    
+    // Uyarı mesajı oluştur
+    const warningDiv = document.createElement('div');
+    warningDiv.style.position = 'absolute';
+    warningDiv.style.top = '10px';
+    warningDiv.style.left = '50%';
+    warningDiv.style.transform = 'translateX(-50%)';
+    warningDiv.style.padding = '10px 15px';
+    warningDiv.style.backgroundColor = '#FFECB3';
+    warningDiv.style.color = '#E65100';
+    warningDiv.style.borderRadius = '4px';
+    warningDiv.style.zIndex = '1000';
+    warningDiv.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
+    warningDiv.textContent = 'TomTom API anahtarı tanımlanmamış! Trafik verisi gösterilemeyecek.';
+    
+    // Kapatma butonu ekle
+    const closeButton = document.createElement('button');
+    closeButton.textContent = '×';
+    closeButton.style.position = 'absolute';
+    closeButton.style.right = '5px';
+    closeButton.style.top = '5px';
+    closeButton.style.border = 'none';
+    closeButton.style.background = 'none';
+    closeButton.style.fontSize = '16px';
+    closeButton.style.cursor = 'pointer';
+    closeButton.style.color = '#E65100';
+    
+    closeButton.addEventListener('click', () => {
+      document.body.removeChild(warningDiv);
+    });
+    
+    warningDiv.appendChild(closeButton);
+    document.body.appendChild(warningDiv);
+    
+    // Trafik butonunu devre dışı bırak
+    const trafficButton = document.getElementById('toggle-traffic');
+    if (trafficButton) {
+      trafficButton.disabled = true;
+      trafficButton.title = 'TomTom API anahtarı gerekiyor';
+    }
+  }
 }
