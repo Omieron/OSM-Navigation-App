@@ -21,6 +21,18 @@ document.addEventListener('DOMContentLoaded', function() {
   const routeSelector = new RouteSelector(config, eventBus);
   const routeCalculator = new RouteCalculator(config, eventBus);
   const trafficManager = new TrafficManager(config, eventBus); // Trafik yöneticisini başlat
+
+  // 🚀 DEBUG İÇİN GLOBAL ERİŞİM - BURASI YENİ!
+  window.app = {
+    config: config,
+    eventBus: eventBus,
+    mapManager: mapManager,
+    routeSelector: routeSelector,
+    routeCalculator: routeCalculator,
+    trafficManager: trafficManager
+  };
+
+  console.log('🚀 Debug için window.app oluşturuldu:', window.app);
   
   // Zoom butonlarını bağla
   document.getElementById('zoom-turkey').addEventListener('click', function() {

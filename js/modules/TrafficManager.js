@@ -5,6 +5,7 @@
 import TrafficStyler from './trafficStyler.js';
 import TrafficCalculator from './trafficCalculator.js';
 import TrafficUI from './trafficUI.js';
+import TrafficDataManager from './TrafficDataManager.js';
 
 export default class TrafficManager {
   /**
@@ -26,6 +27,8 @@ export default class TrafficManager {
     this.styler = new TrafficStyler(config);
     this.calculator = new TrafficCalculator(config);
     this.ui = new TrafficUI(config, eventBus);
+
+    this.dataManager = new TrafficDataManager(config, eventBus);
     
     // EventBus olaylarını dinle
     this.eventBus.subscribe('map:ready', this.initialize.bind(this));

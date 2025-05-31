@@ -15,7 +15,7 @@ Dizin oluşturma
 mkdir -p ~/osrm-data
 cd ~/osrm-data
 
-Invoke-WebRequest ile Türkiye haritasını indirme
+# Invoke-WebRequest ile Türkiye haritasını indirme
 Invoke-WebRequest -Uri "http://download.geofabrik.de/europe/turkey-latest.osm.pbf" -OutFile "turkey-latest.osm.pbf"
 ``` 
 
