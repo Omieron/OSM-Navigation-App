@@ -145,23 +145,21 @@ export default class TrafficDataManager {
      * Bu en pahalı operasyon! Mümkün olduğunca az çağırmak istiyoruz.
      */
     async fetchFromTomTom(segment) {
-        // Segment'in orta noktasını al (TomTom API tek nokta istiyor)
+        // Segment'in orta noktasını al
         const midpoint = this.getMidpoint(segment);
 
-        // TomTom API URL'i oluştur
         const url = `${this.config.traffic.baseUrl}${this.config.traffic.flowSegmentData}`;
         const params = new URLSearchParams({
-            key: this.config.traffic.apiKey,                    // API anahtarın
-            point: `${midpoint[0]},${midpoint[1]}`,            // "lat,lon" formatında nokta
-            format: 'json'                                      // JSON cevap istiyoruz
+            point: `${midpoint[0]},${midpoint[1]}`, // "lat,lon" formatında nokta
+            format: 'json'
         });
 
-        console.log(`🌐 TomTom API çağrısı: ${url}?${params}`);
+        console.log(`🌐 Backend Traffic API çağrısı: ${url}?${params}`);
 
-        // Fetch ile API çağrısı yap
+        // Fetch ile backend'e istek yap
         const response = await fetch(`${url}?${params}`, {
             method: 'GET',
-            timeout: 10000, // 10 saniye timeout
+            timeout: 10000,
             headers: {
                 'Accept': 'application/json'
             }
@@ -169,21 +167,15 @@ export default class TrafficDataManager {
 
         // Hata kontrolü
         if (!response.ok) {
-            throw new Error(`TomTom API Error: ${response.status} ${response.statusText}`);
+            throw new Error(`Backend Traffic API Error: ${response.status} ${response.statusText}`);
         }
 
         // JSON parse et
         const data = await response.json();
-        console.log('TomTom API yanıtı:', data);
+        console.log('Backend Traffic API yanıtı:', data);
 
-        // TomTom'dan gelen veriyi bizim formatımıza çevir
-        return {
-            currentSpeed: data.flowSegmentData?.currentSpeed || 50,      // Şu anki hız (km/h)
-            freeFlowSpeed: data.flowSegmentData?.freeFlowSpeed || 50,    // Normal hız (trafik yok)
-            confidence: data.flowSegmentData?.confidence || 0.7,         // Verinin güvenilirliği
-            trafficFactor: (data.flowSegmentData?.freeFlowSpeed || 50) / // Trafik yavaşlatma faktörü
-                (data.flowSegmentData?.currentSpeed || 50)    // 1.0 = trafik yok, 2.0 = 2x yavaş
-        };
+        // Backend zaten normalize edilmiş veri döndürüyor
+        return data;
     }
 
     /**

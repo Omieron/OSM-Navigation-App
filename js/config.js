@@ -14,7 +14,7 @@ export default {
     maxZoom: 18,
     animationDuration: 1000
   },
-  
+
   // Marker stilleyimleri
   markers: {
     start: {
@@ -30,17 +30,18 @@ export default {
       strokeWidth: 2
     }
   },
-  
+
   // OSRM API ayarları - Docker'da çalışan OSRM sunucusu
   api: {
     // Docker üzerinde çalışan OSRM'nin IP adresi ve port'u
-    baseUrl: 'http://localhost:5000',
+    baseUrl: 'http://localhost:3001/api',
+    //baseUrl: 'http://localhost:3001/api/tomtom',
     // OSRM endpoints
     route: '/route/v1',
     // Profiller
     profiles: {
       car: 'driving',
-      bicycle: 'bike', 
+      bicycle: 'bike',
       pedestrian: 'foot'
     },
     // OSRM parametreleri
@@ -51,7 +52,7 @@ export default {
       annotations: true // Mesafe ve süre bilgileri
     }
   },
-  
+
   // Rota hesaplama ayarları
   routing: {
     vehicleType: 'car',  // 'car', 'bicycle', 'pedestrian'
@@ -65,26 +66,24 @@ export default {
     lineHighlightColor: '#FF8800',
     lineHighlightWidth: 8
   },
-  
+
   // TomTom Trafik API ayarları
   traffic: {
     // TomTom API anahtarı
-    apiKey: '**********',
-    // API endpointleri - güncellenmiş sürüm
-    baseUrl: 'https://api.tomtom.com',
-    flowSegmentData: '/traffic/services/5/flowSegmentData', // Versiyon 5 kullanın
-    // Trafik katmanı renkleri
+    apiKey: '', // Artık frontend'de API key gerekmez
+    baseUrl: 'http://localhost:3001/api', // Backend'e git
+    flowSegmentData: '/traffic/flow', // Backend endpoint'i
+
+    // ... diğer ayarlar aynı kalacak
     colors: {
-      good: 'rgba(0, 176, 80, 0.8)',      // Yeşil (akıcı trafik)
-      moderate: 'rgba(255, 192, 0, 0.8)',  // Sarı (orta yoğunluk)
-      bad: 'rgba(237, 28, 36, 0.8)'        // Kırmızı (yoğun trafik) 
+      good: 'rgba(0, 176, 80, 0.8)',
+      moderate: 'rgba(255, 192, 0, 0.8)',
+      bad: 'rgba(237, 28, 36, 0.8)'
     },
     // Trafik çizgi kalınlığı
     lineWidth: 4,
-    // Minimum zoom seviyesi (bu seviyeden daha uzakta trafik verileri çekilmeyecek)
     minZoomLevel: 10,
-    // Trafik verilerinin otomatik yenilenme süresi (ms cinsinden)
-    refreshInterval: 300000, // 5 dakika
+    refreshInterval: 300000,
     routeBufferWidth: 30,
   }
 };
