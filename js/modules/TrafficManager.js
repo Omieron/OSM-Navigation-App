@@ -1,12 +1,15 @@
 /**
- * TrafficManager - Ana trafik yönetim sınıfı
- * Diğer trafik modüllerini yöneten merkezi sınıf
+ * TrafficManager - Sadece rota renklendirme için basit versiyon
+ * 
+ * ✅ Grid sistemi KALDIRILDI
+ * ✅ Sadece mevcut rotanın rengini değiştirir
+ * ✅ RouteTrafficOverlay kullanır
  */
 import TrafficStyler from './trafficStyler.js';
 import TrafficCalculator from './trafficCalculator.js';
 import TrafficUI from './trafficUI.js';
 import TrafficDataManager from './TrafficDataManager.js';
-import TrafficLayerManager from './TrafficLayerManager.js';
+import RouteTrafficOverlay from './RouteTrafficOverlay.js'; // Grid değil, overlay
 
 export default class TrafficManager {
   /**
@@ -20,15 +23,11 @@ export default class TrafficManager {
     this.map = null;
     this.isTrafficVisible = false;
     this.currentRoute = null;
-    this.routeSource = null;     // Rota vektör kaynağı
-    this.routeLayer = null;      // Rota katmanı
-    this.originalRouteLayer = null; // Orijinal rota katmanı referansı
 
     // Alt modülleri başlat
     this.styler = new TrafficStyler(config);
     this.calculator = new TrafficCalculator(config);
     this.ui = new TrafficUI(config, eventBus);
-
     this.dataManager = new TrafficDataManager(config, eventBus);
     
     // EventBus olaylarını dinle
@@ -42,73 +41,110 @@ export default class TrafficManager {
    * Trafik yöneticisini başlatır
    * @param {ol.Map} map - OpenLayers harita nesnesi
    */
-  // TrafficManager.js - initialize methodunu bul ve güncelle
-initialize(map) {
-  this.map = map;
-  
-  // API anahtarı kontrolü
-  if (!this.config.traffic.apiKey || this.config.traffic.apiKey === 'YOUR_TOMTOM_API_KEY_HERE') {
-    console.error('TomTom API anahtarı tanımlanmamış!');
-    this.ui.showStatusMessage('TomTom API anahtarı tanımlanmamış! config.js dosyasını güncelleyin.', 'error');
-    return;
+  async initialize(map) {
+    this.map = map;
+    
+    try {
+      // Backend trafik durumunu kontrol et
+      console.log('🔍 Backend trafik durumu kontrol ediliyor...');
+      const trafficStatus = await this.checkBackendTrafficStatus();
+      
+      if (!trafficStatus.available) {
+        console.error('❌ Backend trafik servisi kullanılamıyor:', trafficStatus.error);
+        this.ui.showStatusMessage(
+          `Trafik servisi kullanılamıyor: ${trafficStatus.error}`, 
+          'error'
+        );
+        
+        // Trafik butonunu devre dışı bırak
+        this.disableTrafficButton();
+        return;
+      }
+      
+      console.log('✅ Backend trafik servisi aktif');
+      
+      // ✅ Sadece RouteTrafficOverlay başlat (grid sistemi YOK)
+      this.routeTrafficOverlay = new RouteTrafficOverlay(
+        this.config,
+        this.eventBus, 
+        map,
+        this.dataManager
+      );
+      
+      // Global erişim için
+      window.app.routeTrafficOverlay = this.routeTrafficOverlay;
+      
+      // Başarı mesajı
+      this.ui.showStatusMessage('Trafik sistemi hazır (sadece rota renklendirme)', 'success');
+      console.log('✅ Trafik sistemi başlatıldı - sadece rota renklendirme');
+      
+    } catch (error) {
+      console.error('❌ Trafik sistemi başlatma hatası:', error);
+      this.ui.showStatusMessage(`Trafik sistemi hatası: ${error.message}`, 'error');
+      this.disableTrafficButton();
+    }
   }
-  
-  try {
-    // Rota vektör kaynağı oluştur
-    this.routeSource = new ol.source.Vector();
-    
-    // Rota katmanı oluştur
-    this.routeLayer = new ol.layer.Vector({
-      source: this.routeSource,
-      style: (feature) => this.styler.trafficRouteStyle(feature, this.isTrafficVisible),
-      visible: false,
-      zIndex: 10 // Diğer katmanların üstünde olsun
-    });
-    
-    // Haritaya ekle
-    map.addLayer(this.routeLayer);
-    
-    // RouteCalculator'ın kullandığı katmana referans bulmaya çalış
-    this.findOriginalRouteLayer(map);
-    
-    // 🚀 YENİ - TrafficLayerManager'ı BURADA başlat (map hazır olduktan sonra)
-    this.layerManager = new TrafficLayerManager(
-      this.config,
-      this.eventBus, 
-      map,                    // map artık hazır
-      this.dataManager        // TrafficDataManager referansı
-    );
-    
-    // Başarı mesajı göster
-    this.ui.showStatusMessage('TomTom trafik sistemi hazır', 'success');
-    console.log('TomTom trafik sistemi başlatıldı');
-  } catch (error) {
-    console.error('Trafik sistemi başlatma hatası:', error);
-    this.ui.showStatusMessage(`Trafik sistemi başlatma hatası: ${error.message}`, 'error');
-  }
-}
 
   /**
-   * Orijinal rota katmanını bulur
-   * @param {ol.Map} map - OpenLayers harita nesnesi
+   * Backend trafik servisinin durumunu kontrol eder
+   * @returns {Object} - {available: boolean, error?: string}
    */
-  findOriginalRouteLayer(map) {
-    map.getLayers().forEach(layer => {
-      if (layer instanceof ol.layer.Vector) {
-        // Vector katmanının kaynak özelliklerini kontrol et
-        const source = layer.getSource();
-        if (source && source.getFeatures) {
-          const features = source.getFeatures();
-          // Rotayla ilgili özellikleri olan bir katman bul
-          features.forEach(feature => {
-            if (feature && feature.get('type') === 'route') {
-              this.originalRouteLayer = layer;
-              console.log('Orijinal rota katmanı bulundu');
-            }
-          });
-        }
+  async checkBackendTrafficStatus() {
+    try {
+      // Backend status endpoint'ini kontrol et
+      const response = await fetch(`${this.config.traffic.baseUrl}/status/tomtom`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json'
+        },
+        timeout: 5000
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        return {
+          available: false,
+          error: errorData.message || `Backend status: ${response.status}`
+        };
       }
-    });
+
+      const statusData = await response.json();
+      
+      // Backend'den gelen durumu değerlendir
+      if (statusData.status === 'connected' && statusData.api_key_valid) {
+        return { available: true };
+      } else if (statusData.status === 'not_configured') {
+        return {
+          available: false,
+          error: 'TomTom API key backend\'de yapılandırılmamış'
+        };
+      } else {
+        return {
+          available: false,
+          error: statusData.error || 'TomTom API bağlantı sorunu'
+        };
+      }
+      
+    } catch (error) {
+      console.error('Backend trafik status kontrolü hatası:', error);
+      return {
+        available: false,
+        error: 'Backend\'e bağlanılamıyor'
+      };
+    }
+  }
+
+  /**
+   * Trafik butonunu devre dışı bırakır
+   */
+  disableTrafficButton() {
+    const trafficButton = document.getElementById('toggle-traffic');
+    if (trafficButton) {
+      trafficButton.disabled = true;
+      trafficButton.textContent = 'Trafik Servisi Kullanılamıyor';
+      trafficButton.title = 'Backend trafik servisi yapılandırılmamış';
+      trafficButton.style.backgroundColor = '#cccccc';
+    }
   }
 
   /**
@@ -125,93 +161,10 @@ initialize(map) {
       // Hesaplamayı başlat
       this.calculator.setOriginalDuration(routeData.duration);
 
-      // Önce mevcut rota feature'larını temizle
-      this.routeSource.clear();
-
-      // Rota feature'ı oluştur
-      const routeFeature = this.createRouteFeature(routeData);
-
-      // Rota feature'ını kaydet
-      this.routeSource.addFeature(routeFeature);
-
-      // Trafik gösteriliyorsa rota katmanını görünür yap
-      if (this.isTrafficVisible) {
-        // Orijinal rota katmanını gizle
-        if (this.originalRouteLayer) {
-          this.originalRouteLayer.setVisible(false);
-        }
-
-        // Trafik rota katmanını göster
-        this.routeLayer.setVisible(true);
-
-        // Rotanın trafik bilgisini hesapla
-        this.calculateTrafficInfo(routeData);
-      }
+      console.log(`📍 Yeni rota: ${routeData.distance.toFixed(1)}km, ${routeData.duration} dakika`);
 
     } catch (error) {
-      console.error('Rota trafik bilgisi oluşturma hatası:', error);
-    }
-  }
-
-  /**
-   * Rota feature'ı oluşturur
-   * @param {Object} routeData - Rota bilgileri
-   * @returns {ol.Feature} Oluşturulan feature
-   */
-  createRouteFeature(routeData) {
-    // Rota koordinatlarını OpenLayers koordinat sistemine dönüştür
-    const routeCoords = routeData.coordinates.map(coord =>
-      ol.proj.fromLonLat([parseFloat(coord[0]), parseFloat(coord[1])])
-    );
-
-    // Rota geometrisi oluştur
-    const routeGeometry = new ol.geom.LineString(routeCoords);
-
-    // Rota feature'ı oluştur
-    return new ol.Feature({
-      geometry: routeGeometry,
-      name: 'Traffic Route',
-      type: 'traffic-route'
-    });
-  }
-
-  /**
-   * Rota üzerindeki trafik durumunu hesaplar
-   * @param {Object} routeData - Rota bilgileri
-   */
-  calculateTrafficInfo(routeData) {
-    try {
-      // Trafik hesaplamalarını yap
-      const trafficInfo = this.calculator.calculateTrafficInfo(routeData);
-
-      // Rota feature'ına trafik bilgilerini ekle
-      const routeFeature = this.routeSource.getFeatures()[0];
-      if (routeFeature) {
-        // Feature özelliklerini ayarla
-        routeFeature.set('trafficCondition', trafficInfo.condition);
-        routeFeature.set('trafficFactor', trafficInfo.factor);
-        routeFeature.set('segmentTraffic', trafficInfo.segmentTraffic);
-        routeFeature.set('segmentFactors', trafficInfo.segmentFactors);
-        routeFeature.set('segmentCount', trafficInfo.segmentCount);
-
-        // Görselleştirmeyi güncelle
-        this.routeLayer.changed();
-
-        // Rota bilgilerini güncelle - trafik varlığında süre değişimini göster
-        this.ui.updateRouteInfoWithTraffic(
-          routeData.distance,
-          this.calculator.getOriginalDuration(),
-          this.calculator.getTrafficDuration()
-        );
-
-        // Bilgi mesajı
-        this.ui.showStatusMessage(
-          `Trafik süresi: ${this.ui.formatDuration(this.calculator.getTrafficDuration())} (+${Math.round((trafficInfo.factor - 1) * 100)}%)`,
-          'success'
-        );
-      }
-    } catch (error) {
-      console.error('Trafik süresi hesaplama hatası:', error);
+      console.error('❌ Rota trafik bilgisi oluşturma hatası:', error);
     }
   }
 
@@ -221,103 +174,93 @@ initialize(map) {
   onRouteClear() {
     this.currentRoute = null;
     this.calculator.reset();
-
-    // Rota source'u temizle
-    if (this.routeSource) {
-      this.routeSource.clear();
-    }
-
-    // Rota katmanını gizle
-    if (this.routeLayer) {
-      this.routeLayer.setVisible(false);
-    }
-
-    // Orijinal rota katmanını göster
-    if (this.originalRouteLayer) {
-      this.originalRouteLayer.setVisible(true);
-    }
+    console.log('🧹 Trafik manager - rota temizlendi');
   }
 
   /**
    * Trafik katmanını açıp kapatır
-   * @param {boolean} [forceState] - İsteğe bağlı olarak zorla açık/kapalı durumu
+   * @param {boolean} [forceState] - İsteğe bağlı zorla durum
    */
   toggleTrafficLayer(forceState) {
-    // forceState tanımlıysa onu kullan, yoksa mevcut durumu tersine çevir
     this.isTrafficVisible = forceState !== undefined ? forceState : !this.isTrafficVisible;
 
-    // Trafik açıksa ve rota varsa, rota katmanını göster, orijinal katmanı gizle
     if (this.isTrafficVisible && this.currentRoute) {
-      // Orijinal rota katmanını gizle
-      if (this.originalRouteLayer) {
-        this.originalRouteLayer.setVisible(false);
-      }
-
-      // Trafik rota katmanını göster
-      this.routeLayer.setVisible(true);
-
-      // Hali hazırda trafik bilgisi yüklenmemişse, yükle
-      if (this.routeSource.getFeatures().length > 0) {
-        const feature = this.routeSource.getFeatures()[0];
-        if (!feature.get('trafficCondition')) {
-          this.calculateTrafficInfo(this.currentRoute);
-        } else {
-          // Rota bilgilerini güncelle - trafik varlığında süre değişimini göster
-          this.ui.updateRouteInfoWithTraffic(
-            this.currentRoute.distance,
-            this.calculator.getOriginalDuration(),
-            this.calculator.getTrafficDuration()
-          );
-        }
-      }
-
-      if (this.layerManager) {
-        this.layerManager.toggleTrafficLayer(this.isTrafficVisible);
-      }
-
-      // Bilgi mesajı
-      if (this.calculator.getTrafficDuration() > 0) {
-        this.ui.showStatusMessage(
-          `Trafik süresi: ${this.ui.formatDuration(this.calculator.getTrafficDuration())}`,
-          'success'
-        );
-      } else {
-        this.ui.showStatusMessage('Rota üzerinde trafik gösteriliyor', 'success');
-      }
-    }
-    // Trafik kapalıysa veya rota yoksa, orijinal katmanı göster, trafik katmanını gizle
-    else {
-      // Trafik rota katmanını gizle
-      if (this.routeLayer) {
-        this.routeLayer.setVisible(false);
-      }
-
-      // Orijinal rota katmanını göster
-      if (this.originalRouteLayer) {
-        this.originalRouteLayer.setVisible(true);
-      }
-
-      // Trafik kapatıldıysa, orijinal rota bilgilerini göster
-      if (!this.isTrafficVisible && this.currentRoute) {
-        this.ui.updateRouteInfoWithOriginalData(
-          this.currentRoute.distance,
-          this.calculator.getOriginalDuration()
-        );
-      }
-
-      // Trafik kapatıldı mesajı
-      if (!this.isTrafficVisible && this.currentRoute) {
-        this.ui.showStatusMessage('Trafik gösterimi kapatıldı', 'info');
-      }
-      // Rota yok mesajı
-      else if (!this.currentRoute) {
-        this.ui.showStatusMessage('Trafik göstermek için önce bir rota oluşturun', 'info');
-      }
+      this.enableTrafficView();
+    } else {
+      this.disableTrafficView();
     }
 
     // UI durumunu güncelle
     this.ui.updateTrafficButtonState(this.isTrafficVisible);
+    console.log(`🚦 Trafik renklendirme ${this.isTrafficVisible ? 'açıldı' : 'kapatıldı'}`);
+  }
 
-    console.log(`Trafik katmanı ${this.isTrafficVisible ? 'açıldı' : 'kapatıldı'}`);
+  /**
+   * Trafik görünümünü aktifleştirir
+   */
+  enableTrafficView() {
+    // ✅ DÜZELTİLDİ: Farklı event adı kullan - infinite loop önlenir
+    this.eventBus.publish('traffic:overlay:toggle', true);
+
+    if (this.currentRoute) {
+      this.ui.showStatusMessage('Rota trafik renklendirmesi aktif', 'success');
+    } else {
+      this.ui.showStatusMessage('Trafik göstermek için önce bir rota oluşturun', 'info');
+    }
+  }
+
+  /**
+   * Trafik görünümünü deaktifleştirir
+   */
+  disableTrafficView() {
+    // ✅ DÜZELTİLDİ: Farklı event adı kullan - infinite loop önlenir
+    this.eventBus.publish('traffic:overlay:toggle', false);
+
+    this.ui.showStatusMessage('Trafik renklendirmesi kapatıldı', 'info');
+  }
+
+  /**
+   * Debug bilgileri
+   */
+  debugTrafficManager() {
+    console.log('🔍 TrafficManager Debug:', {
+      isVisible: this.isTrafficVisible,
+      hasRoute: !!this.currentRoute,
+      hasOverlay: !!this.routeTrafficOverlay
+    });
+
+    // Cache durumu
+    if (this.dataManager) {
+      this.dataManager.logCacheStatus();
+    }
+
+    // Overlay debug
+    if (this.routeTrafficOverlay) {
+      this.routeTrafficOverlay.debugTrafficRoute();
+    }
+  }
+
+  /**
+   * Temizlik işlemi
+   */
+  destroy() {
+    if (this.routeTrafficOverlay) {
+      this.routeTrafficOverlay.destroy();
+    }
+    
+    if (this.dataManager) {
+      this.dataManager.destroy();
+    }
+    
+    console.log('🛑 TrafficManager destroyed');
   }
 }
+
+// Global debug fonksiyonu
+window.debugTrafficManager = function() {
+  if (window.app && window.app.trafficManager) {
+    window.app.trafficManager.debugTrafficManager();
+  } else {
+    console.warn("TrafficManager bulunamadı!");
+  }
+};

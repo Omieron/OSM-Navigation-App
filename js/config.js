@@ -1,5 +1,6 @@
 /**
  * Sistem genelinde kullanılacak yapılandırma ayarları
+ * Backend adaptasyonu ile güncellenmiş
  */
 export default {
   // Harita ayarları
@@ -31,32 +32,34 @@ export default {
     }
   },
 
-  // OSRM API ayarları - Docker'da çalışan OSRM sunucusu
+  // OSRM API ayarları - Backend üzerinden
   api: {
-    // Docker üzerinde çalışan OSRM'nin IP adresi ve port'u
+    // Backend'in base URL'i
     baseUrl: 'http://localhost:3001/api',
-    //baseUrl: 'http://localhost:3001/api/tomtom',
-    // OSRM endpoints
+    
+    // OSRM endpoints (backend üzerinden)
     route: '/route/v1',
+    
     // Profiller
     profiles: {
       car: 'driving',
-      bicycle: 'bike',
+      bicycle: 'bike', 
       pedestrian: 'foot'
     },
+    
     // OSRM parametreleri
     params: {
-      overview: 'full', // Detaylı rota geometrisi
-      geometries: 'geojson', // GeoJSON formatında sonuç
-      steps: true, // Adım adım navigasyon bilgileri
-      annotations: true // Mesafe ve süre bilgileri
+      overview: 'full',
+      geometries: 'geojson',
+      steps: true,
+      annotations: true
     }
   },
 
   // Rota hesaplama ayarları
   routing: {
-    vehicleType: 'car',  // 'car', 'bicycle', 'pedestrian'
-    costField: 'duration' // 'distance' veya 'duration'
+    vehicleType: 'car',
+    costField: 'duration'
   },
 
   // Rota stili
@@ -67,23 +70,88 @@ export default {
     lineHighlightWidth: 8
   },
 
-  // TomTom Trafik API ayarları
+  // Trafik ayarları - Backend entegrasyonu
   traffic: {
-    // TomTom API anahtarı
-    apiKey: '', // Artık frontend'de API key gerekmez
-    baseUrl: 'http://localhost:3001/api', // Backend'e git
-    flowSegmentData: '/traffic/flow', // Backend endpoint'i
-
-    // ... diğer ayarlar aynı kalacak
-    colors: {
-      good: 'rgba(0, 176, 80, 0.8)',
-      moderate: 'rgba(255, 192, 0, 0.8)',
-      bad: 'rgba(237, 28, 36, 0.8)'
+    // ❌ API key artık frontend'de değil! Backend'de tutulacak
+    // apiKey: '', // KALDIRILDI
+    
+    // Backend endpoint'leri
+    baseUrl: 'http://localhost:3001/api',
+    flowSegmentData: '/traffic/flow',  // Backend route'u
+    
+    // Status endpoint'leri
+    statusEndpoints: {
+      osrm: '/status/osrm',
+      tomtom: '/status/tomtom',
+      health: '/health'
     },
+    
+    // Görselleştirme ayarları
+    colors: {
+      good: 'rgba(0, 176, 80, 0.8)',      // Yeşil - akıcı trafik
+      moderate: 'rgba(255, 192, 0, 0.8)', // Sarı - orta yoğunluk
+      bad: 'rgba(237, 28, 36, 0.8)'       // Kırmızı - yoğun trafik
+    },
+    
     // Trafik çizgi kalınlığı
     lineWidth: 4,
+    
+    // Minimum zoom seviyesi (trafik gösterimi için)
     minZoomLevel: 10,
-    refreshInterval: 300000,
+    
+    // Otomatik güncelleme aralığı (ms)
+    refreshInterval: 300000, // 5 dakika
+    
+    // Rota buffer genişliği (metre)
     routeBufferWidth: 30,
+    
+    // Cache ayarları (frontend tarafı)
+    cache: {
+      // Backend'de cache var, frontend'de de kısa süreli cache
+      ttl: 60000, // 1 dakika (backend'den daha kısa)
+      maxSize: 100 // Maximum cache entry sayısı
+    },
+    
+    // Request timeout ayarları
+    timeout: {
+      status: 5000,    // Status check için 5 saniye
+      flow: 10000      // Trafik verisi için 10 saniye
+    },
+    
+    // Fallback ayarları
+    fallback: {
+      enabled: true,
+      data: {
+        currentSpeed: 45,
+        freeFlowSpeed: 50,
+        confidence: 0.3,
+        trafficFactor: 1.1
+      }
+    }
+  },
+
+  // Backend bağlantı ayarları
+  backend: {
+    baseUrl: 'http://localhost:3001',
+    timeout: 15000, // 15 saniye genel timeout
+    retryAttempts: 2,
+    retryDelay: 1000, // 1 saniye retry delay
+    
+    // Endpoint'ler
+    endpoints: {
+      osrmRoute: '/api/route/v1',
+      trafficFlow: '/api/traffic/flow',
+      statusOsrm: '/api/status/osrm',
+      statusTomtom: '/api/status/tomtom',
+      health: '/api/health'
+    }
+  },
+
+  // Debug ve geliştirme ayarları
+  debug: {
+    enabled: true, // Konsol logları için
+    verbose: false, // Detaylı loglar
+    showCacheStats: true, // Cache istatistiklerini göster
+    showNetworkRequests: true // Network isteklerini logla
   }
 };

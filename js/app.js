@@ -1,28 +1,28 @@
 /**
  * Ana uygulama başlatıcı
- * Tüm modülleri yükler ve başlatır
+ * Grid sistemi kaldırıldı - sadece rota renklendirme
  */
-import EventBus from './utils/eventBus.js';
-import config from './config.js';
-import MapManager from './modules/mapManager.js';
-import RouteSelector from './modules/routeSelector.js';
-import RouteCalculator from './modules/routeCalculator.js';
-import TrafficManager from './modules/TrafficManager.js'; // Ana trafik yöneticisi
+import EventBus from "./utils/eventBus.js";
+import config from "./config.js";
+import MapManager from "./modules/mapManager.js";
+import RouteSelector from "./modules/routeSelector.js";
+import RouteCalculator from "./modules/routeCalculator.js";
+import TrafficManager from "./modules/TrafficManager.js"; // Basit versiyon
 
 // Sayfa yüklendiğinde çalıştır
-document.addEventListener('DOMContentLoaded', function() {
-  console.log('Navigasyon uygulaması başlatılıyor...');
+document.addEventListener("DOMContentLoaded", function() {
+  console.log("🚀 Navigasyon uygulaması başlatılıyor...");
   
-  // EventBus oluştur - tüm modüllerin iletişimi için
+  // EventBus oluştur
   const eventBus = new EventBus();
   
   // Modülleri başlat
   const mapManager = new MapManager(config, eventBus);
   const routeSelector = new RouteSelector(config, eventBus);
   const routeCalculator = new RouteCalculator(config, eventBus);
-  const trafficManager = new TrafficManager(config, eventBus); // Trafik yöneticisini başlat
+  const trafficManager = new TrafficManager(config, eventBus); // ✅ Sadece rota renklendirme
 
-  // 🚀 DEBUG İÇİN GLOBAL ERİŞİM - BURASI YENİ!
+  // Global erişim (debug için)
   window.app = {
     config: config,
     eventBus: eventBus,
@@ -30,11 +30,29 @@ document.addEventListener('DOMContentLoaded', function() {
     routeSelector: routeSelector,
     routeCalculator: routeCalculator,
     trafficManager: trafficManager
+    // routeTrafficOverlay trafficManager.initialize()'de eklenir
   };
 
-  console.log('🚀 Debug için window.app oluşturuldu:', window.app);
+  console.log("🚀 Debug için window.app oluşturuldu:", window.app);
   
-  // Zoom butonlarını bağla
+  // UI Event listener'ları
+  setupUIEventListeners(eventBus);
+  
+  // Backend sistem kontrollerini başlat
+  initializeBackendChecks(eventBus);
+  
+  // Uygulama hazır
+  eventBus.publish("app:ready", {
+    timestamp: Date.now()
+  });
+});
+
+/**
+ * UI event listener'larını ayarlar
+ * @param {Object} eventBus - Event bus referansı
+ */
+function setupUIEventListeners(eventBus) {
+  // Zoom butonları
   document.getElementById('zoom-turkey').addEventListener('click', function() {
     eventBus.publish('map:zoomToLocation', {
       coords: config.map.initialView.turkey.center,
@@ -42,35 +60,35 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
   
-  // Trafik butonunu bağla
+  // ✅ Trafik butonu - sadece rota renklendirme için
   document.getElementById('toggle-traffic').addEventListener('click', function() {
     eventBus.publish('traffic:toggle');
   });
   
-  // Rota yükleniyor durumu eventbusunu dinle
+  // Loading overlay eventleri
+  setupLoadingEventListeners(eventBus);
+}
+
+/**
+ * Loading overlay event listener'larını ayarlar
+ * @param {Object} eventBus - Event bus referansı
+ */
+function setupLoadingEventListeners(eventBus) {
+  // Rota yükleniyor durumu
   eventBus.subscribe('route:loading', function(isLoading) {
     const loadingOverlay = document.getElementById('loading-overlay');
     
     if (isLoading) {
-      // Hesaplama başladığında
-      // Overlay'i göster
       loadingOverlay.style.display = 'flex';
-      
-      // Tüm tıklama eventlerini devre dışı bırakmak için overlay'i göster
       document.body.classList.add('loading');
     } else {
-      // Hesaplama bittiğinde
-      // Overlay'i gizle
       loadingOverlay.style.display = 'none';
-      
-      // Tıklama eventlerini tekrar aktif et
       document.body.classList.remove('loading');
     }
   });
   
-  // Trafik yükleniyor durumu eventbusunu dinle
+  // Trafik yükleniyor durumu
   eventBus.subscribe('traffic:loading', function(isLoading) {
-    // Trafik verisi yüklenirken basit bir gösterge
     const trafficButton = document.getElementById('toggle-traffic');
     
     if (isLoading && trafficButton) {
@@ -81,165 +99,349 @@ document.addEventListener('DOMContentLoaded', function() {
       trafficButton.disabled = false;
     }
   });
-  
-  // Uygulama hazır olduğunda EventBus aracılığıyla bildir
-  eventBus.publish('app:ready', {
-    timestamp: Date.now()
-  });
-  
-  // OSRM bağlantısını test et
-  testOSRMConnection();
-  
-  // TomTom API anahtarını kontrol et
-  checkTomTomAPIKey();
-});
-
-/**
- * OSRM bağlantısını kontrol eder
- */
-function testOSRMConnection() {
-  const statusText = document.createElement('div');
-  statusText.id = 'api-status';
-  statusText.style.position = 'absolute';
-  statusText.style.bottom = '10px';
-  statusText.style.right = '10px';
-  statusText.style.padding = '5px 10px';
-  statusText.style.borderRadius = '4px';
-  statusText.style.fontSize = '12px';
-  statusText.style.zIndex = '1000';
-  statusText.textContent = 'OSRM bağlantısı kontrol ediliyor...';
-  statusText.style.backgroundColor = '#FFF59D';
-  document.body.appendChild(statusText);
-  
-  // OSRM bağlantı durumunu kontrol et
-  const checkOSRM = async () => {
-    try {
-      console.log(`OSRM API kontrol ediliyor: ${config.api.baseUrl}`);
-      
-      // OSRM servis kontrolü için örnek koordinatlar kullanarak geçerli bir istek yap
-      // İstanbul'dan küçük bir örnek rota (Kadıköy -> Üsküdar)
-      const profile = 'car';
-      const testCoords = '29.0320,40.9923;29.0158,41.0265';
-      const testParams = 'overview=false';
-      
-      // Geçerli bir OSRM isteği oluştur
-      const url = `${config.api.baseUrl}${config.api.route}/${profile}/${testCoords}?${testParams}`;
-      
-      console.log(`OSRM test isteği: ${url}`);
-      
-      // Fetch ile bağlantıyı kontrol et
-      const response = await fetch(url, {
-        method: 'GET',
-        signal: AbortSignal.timeout(5000) // 5 saniye timeout
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-      }
-      
-      // Yanıtı JSON olarak parse et
-      const data = await response.json();
-      
-      // OSRM yanıt kontrolü
-      if (data.code !== 'Ok') {
-        throw new Error(`OSRM yanıt hatası: ${data.message || 'Bilinmeyen OSRM hatası'}`);
-      }
-      
-      // Başarılı mesajı göster
-      statusText.textContent = 'OSRM bağlantısı başarılı';
-      statusText.style.backgroundColor = '#A5D6A7';
-      
-      // 3 saniye sonra mesajı gizle
-      setTimeout(() => {
-        statusText.style.opacity = '0';
-        statusText.style.transition = 'opacity 1s';
-      }, 3000);
-      
-    } catch (error) {
-      console.error('OSRM API kontrol hatası:', error);
-      statusText.textContent = 'OSRM bağlantısı başarısız!';
-      statusText.style.backgroundColor = '#EF9A9A';
-      
-      // Hata detaylarını göster
-      const errorDetails = document.createElement('div');
-      errorDetails.style.fontSize = '10px';
-      errorDetails.style.marginTop = '5px';
-      errorDetails.textContent = error.message || 'Bilinmeyen hata';
-      statusText.appendChild(errorDetails);
-      
-      // OSRM URL'sini göster
-      const urlInfo = document.createElement('div');
-      urlInfo.style.fontSize = '10px';
-      urlInfo.style.marginTop = '5px';
-      urlInfo.textContent = `URL: ${config.api.baseUrl}`;
-      statusText.appendChild(urlInfo);
-      
-      // Docker kontrol ipucu
-      const dockerTip = document.createElement('div');
-      dockerTip.style.fontSize = '10px';
-      dockerTip.style.marginTop = '5px';
-      dockerTip.textContent = 'Docker üzerinde OSRM servisinin çalıştığından emin olun.';
-      statusText.appendChild(dockerTip);
-      
-      // Config ipucu
-      const configTip = document.createElement('div');
-      configTip.style.fontSize = '10px';
-      configTip.style.marginTop = '5px';
-      configTip.textContent = 'config.js dosyasında baseUrl ayarını güncelleyin.';
-      statusText.appendChild(configTip);
-    }
-  };
-  
-  // API kontrolünü başlat
-  checkOSRM();
 }
 
 /**
- * TomTom API anahtarını kontrol eder
+ * Backend sistem kontrollerini başlatır
+ * @param {Object} eventBus - Event bus referansı
  */
-function checkTomTomAPIKey() {
-  // API anahtarının ayarlanıp ayarlanmadığını kontrol et
-  if (!config.traffic || !config.traffic.apiKey || config.traffic.apiKey === 'YOUR_TOMTOM_API_KEY_HERE') {
-    console.warn('TomTom API anahtarı ayarlanmamış!');
+async function initializeBackendChecks(eventBus) {
+  console.log('🔍 Backend sistem kontrolleri başlatılıyor...');
+  
+  // Sıralı kontroller
+  await checkBackendHealth();
+  await checkOSRMStatus();
+  await checkTomTomStatus();
+  
+  console.log('✅ Backend sistem kontrolleri tamamlandı');
+}
+
+/**
+ * Backend health check
+ */
+async function checkBackendHealth() {
+  const statusDiv = createStatusIndicator('backend-status', 'Backend bağlantısı kontrol ediliyor...');
+  
+  try {
+    console.log('🏥 Backend health check yapılıyor...');
     
-    // Uyarı mesajı oluştur
-    const warningDiv = document.createElement('div');
-    warningDiv.style.position = 'absolute';
-    warningDiv.style.top = '10px';
-    warningDiv.style.left = '50%';
-    warningDiv.style.transform = 'translateX(-50%)';
-    warningDiv.style.padding = '10px 15px';
-    warningDiv.style.backgroundColor = '#FFECB3';
-    warningDiv.style.color = '#E65100';
-    warningDiv.style.borderRadius = '4px';
-    warningDiv.style.zIndex = '1000';
-    warningDiv.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
-    warningDiv.textContent = 'TomTom API anahtarı tanımlanmamış! Trafik verisi gösterilemeyecek.';
-    
-    // Kapatma butonu ekle
-    const closeButton = document.createElement('button');
-    closeButton.textContent = '×';
-    closeButton.style.position = 'absolute';
-    closeButton.style.right = '5px';
-    closeButton.style.top = '5px';
-    closeButton.style.border = 'none';
-    closeButton.style.background = 'none';
-    closeButton.style.fontSize = '16px';
-    closeButton.style.cursor = 'pointer';
-    closeButton.style.color = '#E65100';
-    
-    closeButton.addEventListener('click', () => {
-      document.body.removeChild(warningDiv);
+    const response = await fetch(`${config.backend.baseUrl}/api/health`, {
+      method: 'GET',
+      signal: AbortSignal.timeout(config.backend.timeout),
+      headers: {
+        'Accept': 'application/json'
+      }
     });
     
-    warningDiv.appendChild(closeButton);
-    document.body.appendChild(warningDiv);
-    
-    // Trafik butonunu devre dışı bırak
-    const trafficButton = document.getElementById('toggle-traffic');
-    if (trafficButton) {
-      trafficButton.disabled = true;
-      trafficButton.title = 'TomTom API anahtarı gerekiyor';
+    if (!response.ok) {
+      throw new Error(`Backend health check failed: ${response.status}`);
     }
+    
+    const healthData = await response.json();
+    console.log('💚 Backend sağlıklı:', healthData);
+    
+    updateStatusIndicator(statusDiv, 'Backend bağlantısı başarılı', 'success');
+    
+    // Health data'yı global olarak sakla
+    window.app.backendHealth = healthData;
+    
+  } catch (error) {
+    console.error('❌ Backend health check hatası:', error);
+    updateStatusIndicator(
+      statusDiv, 
+      `Backend bağlantı hatası: ${error.message}`, 
+      'error',
+      true // persist
+    );
   }
 }
+
+/**
+ * OSRM servis durumunu kontrol eder
+ */
+async function checkOSRMStatus() {
+  const statusDiv = createStatusIndicator('osrm-status', 'OSRM servisi kontrol ediliyor...');
+  
+  try {
+    console.log('🗺️ OSRM servis durumu kontrol ediliyor...');
+    
+    const response = await fetch(`${config.backend.baseUrl}/api/status/osrm`, {
+      method: 'GET',
+      signal: AbortSignal.timeout(config.traffic.timeout.status)
+    });
+    
+    const osrmData = await response.json();
+    
+    if (osrmData.status === 'connected') {
+      console.log('✅ OSRM servisi aktif:', osrmData);
+      updateStatusIndicator(statusDiv, 'OSRM servisi aktif', 'success');
+    } else {
+      console.warn('⚠️ OSRM servisi bağlantı sorunu:', osrmData);
+      updateStatusIndicator(
+        statusDiv, 
+        `OSRM bağlantı sorunu: ${osrmData.error}`, 
+        'warning',
+        true
+      );
+    }
+    
+    window.app.osrmStatus = osrmData;
+    
+  } catch (error) {
+    console.error('❌ OSRM status kontrolü hatası:', error);
+    updateStatusIndicator(
+      statusDiv, 
+      'OSRM servisi kullanılamıyor. Docker konteynerini başlatın.', 
+      'error',
+      true
+    );
+  }
+}
+
+/**
+ * TomTom API durumunu kontrol eder
+ */
+async function checkTomTomStatus() {
+  const statusDiv = createStatusIndicator('tomtom-status', 'TomTom API kontrol ediliyor...');
+  
+  try {
+    console.log('🚦 TomTom API durumu kontrol ediliyor...');
+    
+    const response = await fetch(`${config.backend.baseUrl}/api/status/tomtom`, {
+      method: 'GET',
+      signal: AbortSignal.timeout(config.traffic.timeout.status)
+    });
+    
+    const tomtomData = await response.json();
+    
+    if (tomtomData.status === 'connected' && tomtomData.api_key_valid) {
+      console.log('✅ TomTom API aktif:', tomtomData);
+      updateStatusIndicator(statusDiv, 'TomTom API aktif', 'success');
+    } else if (tomtomData.status === 'not_configured') {
+      console.warn('⚠️ TomTom API yapılandırılmamış');
+      updateStatusIndicator(
+        statusDiv, 
+        'TomTom API key backend\'de yapılandırılmamış', 
+        'warning',
+        true
+      );
+      disableTrafficFeatures();
+    } else {
+      console.warn('⚠️ TomTom API sorunu:', tomtomData);
+      updateStatusIndicator(
+        statusDiv, 
+        `TomTom API sorunu: ${tomtomData.error}`, 
+        'warning',
+        true
+      );
+      disableTrafficFeatures();
+    }
+    
+    window.app.tomtomStatus = tomtomData;
+    
+  } catch (error) {
+    console.error('❌ TomTom status kontrolü hatası:', error);
+    updateStatusIndicator(
+      statusDiv, 
+      'TomTom API kontrol edilemedi', 
+      'error',
+      true
+    );
+    disableTrafficFeatures();
+  }
+}
+
+/**
+ * Trafik özelliklerini devre dışı bırakır
+ */
+function disableTrafficFeatures() {
+  const trafficButton = document.getElementById('toggle-traffic');
+  if (trafficButton) {
+    trafficButton.disabled = true;
+    trafficButton.textContent = 'Trafik Servisi Kullanılamıyor';
+    trafficButton.style.backgroundColor = '#cccccc';
+    trafficButton.title = 'TomTom API yapılandırması gerekiyor';
+  }
+}
+
+/**
+ * Status göstergesi oluşturur
+ * @param {string} id - Element ID'si
+ * @param {string} message - Gösterilecek mesaj
+ * @returns {HTMLElement} - Oluşturulan element
+ */
+function createStatusIndicator(id, message) {
+  // Varolan göstergeyi kaldır
+  const existing = document.getElementById(id);
+  if (existing) {
+    existing.remove();
+  }
+  
+  const statusDiv = document.createElement('div');
+  statusDiv.id = id;
+  statusDiv.className = 'status-indicator';
+  statusDiv.style.cssText = `
+    position: absolute;
+    bottom: ${getStatusPosition()}px;
+    right: 10px;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    z-index: 1000;
+    background-color: #FFF59D;
+    color: #333;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    transition: all 0.3s ease;
+  `;
+  statusDiv.textContent = message;
+  
+  document.body.appendChild(statusDiv);
+  return statusDiv;
+}
+
+/**
+ * Status göstergesini günceller
+ * @param {HTMLElement} statusDiv - Status element
+ * @param {string} message - Yeni mesaj
+ * @param {string} type - success, error, warning
+ * @param {boolean} persist - Kalıcı gösterim
+ */
+function updateStatusIndicator(statusDiv, message, type = 'info', persist = false) {
+  statusDiv.textContent = message;
+  
+  // Renk ayarları
+  const colors = {
+    success: { bg: '#A5D6A7', color: '#2E7D32' },
+    error: { bg: '#FFCDD2', color: '#C62828' },
+    warning: { bg: '#FFE0B2', color: '#EF6C00' },
+    info: { bg: '#E1F5FE', color: '#0277BD' }
+  };
+  
+  const colorScheme = colors[type] || colors.info;
+  statusDiv.style.backgroundColor = colorScheme.bg;
+  statusDiv.style.color = colorScheme.color;
+  
+  // Kapatma butonu ekle
+  if (persist) {
+    addCloseButton(statusDiv);
+  } else {
+    // 5 saniye sonra kaldır
+    setTimeout(() => {
+      if (statusDiv.parentNode) {
+        statusDiv.style.opacity = '0';
+        setTimeout(() => {
+          if (statusDiv.parentNode) {
+            statusDiv.remove();
+          }
+        }, 300);
+      }
+    }, 5000);
+  }
+}
+
+/**
+ * Kapatma butonu ekler
+ * @param {HTMLElement} statusDiv - Status element
+ */
+function addCloseButton(statusDiv) {
+  const closeBtn = document.createElement('button');
+  closeBtn.textContent = '×';
+  closeBtn.style.cssText = `
+    position: absolute;
+    right: 5px;
+    top: 5px;
+    border: none;
+    background: none;
+    font-size: 16px;
+    cursor: pointer;
+    color: inherit;
+    padding: 0;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  `;
+  
+  closeBtn.onclick = () => {
+    statusDiv.style.opacity = '0';
+    setTimeout(() => {
+      if (statusDiv.parentNode) {
+        statusDiv.remove();
+      }
+    }, 300);
+  };
+  
+  statusDiv.appendChild(closeBtn);
+  statusDiv.style.paddingRight = '30px'; // Close button için yer aç
+}
+
+/**
+ * Status indicator'ların position'ını hesaplar
+ * @returns {number} - Bottom position (px)
+ */
+function getStatusPosition() {
+  const existingIndicators = document.querySelectorAll('.status-indicator');
+  return 50 + (existingIndicators.length * 50); // Her biri 50px aralıkla
+}
+
+/**
+ * Test fonksiyonu - Backend endpoint'lerini test eder
+ */
+function testBackendEndpoints() {
+  console.log("🧪 Backend endpoint testleri başlatılıyor...");
+  
+  const endpoints = [
+    { name: "Health", url: "/api/health" },
+    { name: "OSRM Status", url: "/api/status/osrm" },
+    { name: "TomTom Status", url: "/api/status/tomtom" },
+    { name: "Test Route", url: "/api/route/v1/driving/29.0320,40.9923;29.0158,41.0265?overview=false" }
+  ];
+  
+  return new Promise(async (resolve) => {
+    for (const endpoint of endpoints) {
+      try {
+        console.log(`📡 Testing ${endpoint.name}...`);
+        const response = await fetch(`${config.backend.baseUrl}${endpoint.url}`);
+        const data = await response.json();
+        console.log(`✅ ${endpoint.name}:`, data);
+      } catch (error) {
+        console.error(`❌ ${endpoint.name} error:`, error);
+      }
+    }
+    
+    console.log("🏁 Backend endpoint testleri tamamlandı");
+    resolve();
+  });
+}
+
+// Global fonksiyonlar
+window.testBackend = testBackendEndpoints;
+
+// ✅ Debug fonksiyonları - sadece rota renklendirme için
+window.debugRoute = function() {
+  if (window.app && window.app.routeTrafficOverlay) {
+    window.app.routeTrafficOverlay.debugTrafficRoute();
+  } else {
+    console.warn("RouteTrafficOverlay bulunamadı! Önce bir rota oluşturun.");
+  }
+};
+
+window.toggleRouteTraffic = function() {
+  if (window.app && window.app.trafficManager) {
+    // ✅ DÜZELTİLDİ: TrafficManager'ın toggleTrafficLayer metodunu direkt çağır
+    window.app.trafficManager.toggleTrafficLayer();
+    console.log("🔄 Trafik toggle edildi");
+  } else {
+    console.warn("TrafficManager bulunamadı!");
+  }
+};
+
+window.clearRouteCache = function() {
+  if (window.app && window.app.trafficManager && window.app.trafficManager.dataManager) {
+    window.app.trafficManager.dataManager.clearCache();
+    console.log("🗑️ Rota cache temizlendi");
+  } else {
+    console.warn("TrafficDataManager bulunamadı!");
+  }
+};

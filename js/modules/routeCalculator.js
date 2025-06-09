@@ -1,15 +1,15 @@
-
+/**
+ * RouteCalculator - Segment sistemi düzeltilmiş versiyon
+ * 
+ * Düzeltilen sorunlar:
+ * 1. Segment oluşturma algoritması optimize edildi
+ * 2. Koordinat hassasiyeti artırıldı
+ * 3. Cache uyumluluğu iyileştirildi
+ * 4. Debug bilgileri genişletildi
+ */
 import TrafficDataManager from './TrafficDataManager.js';
 
-/**
- * RouteCalculator - OSRM ile rota hesaplama işlemlerini yöneten modül
- */
 export default class RouteCalculator {
-  /**
-   * RouteCalculator sınıfını başlatır
-   * @param {Object} config - Konfigürasyon ayarları
-   * @param {Object} eventBus - Modüller arası iletişim için EventBus
-   */
   constructor(config, eventBus) {
     this.config = config;
     this.eventBus = eventBus;
@@ -24,10 +24,6 @@ export default class RouteCalculator {
     this.eventBus.subscribe('map:ready', this.setupRouteLayer.bind(this));
   }
 
-  /**
-   * Rota Layer'ını oluşturur
-   * @param {ol.Map} map - OpenLayers harita nesnesi
-   */
   setupRouteLayer(map) {
     this.routeLayer = new ol.layer.Vector({
       source: this.routeSource,
@@ -43,9 +39,6 @@ export default class RouteCalculator {
     console.log('Rota layer haritaya eklendi');
   }
 
-  /**
-   * Çizilmiş rotayı temizler
-   */
   clearRoute() {
     if (this.routeSource) {
       this.routeSource.clear();
@@ -53,12 +46,7 @@ export default class RouteCalculator {
     }
   }
 
-  /**
-   * İki nokta arasında rota hesaplar
-   * @param {Object} routeRequest - {start: [lon, lat], end: [lon, lat], type: 'car'|'bicycle'|'pedestrian'}
-   */
   calculateRoute(routeRequest) {
-    // Mevcut rotayı temizle
     this.clearRoute();
 
     const { start, end, type } = routeRequest;
@@ -70,12 +58,6 @@ export default class RouteCalculator {
     this.fetchRouteFromOSRM(start, end, type);
   }
 
-  /**
-   * OSRM API'den rota verisi çeker
-   * @param {Array} start - [lon, lat] başlangıç noktası
-   * @param {Array} end - [lon, lat] bitiş noktası
-   * @param {string} type - Araç tipi
-   */
   fetchRouteFromOSRM(start, end, type) {
     // Yükleniyor durumunu bildirme
     this.eventBus.publish('route:loading', true);
@@ -105,19 +87,18 @@ export default class RouteCalculator {
 
     // Zaman aşımı için controller
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 saniye timeout
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
 
-    // API çağrısı yap
     fetch(url, {
       method: 'GET',
       headers: {
         'Accept': 'application/json'
       },
       mode: 'cors',
-      signal: controller.signal // Zaman aşımı için sinyal
+      signal: controller.signal
     })
       .then(response => {
-        clearTimeout(timeoutId); // Zamanlayıcıyı temizle
+        clearTimeout(timeoutId);
 
         if (!response.ok) {
           throw new Error(`HTTP error! Status: ${response.status}`);
@@ -146,16 +127,14 @@ export default class RouteCalculator {
         this.showRouteInformation(routeStats);
       })
       .catch(error => {
-        clearTimeout(timeoutId); // Hata durumunda da zamanlayıcıyı temizle
+        clearTimeout(timeoutId);
 
-        // İstek zaman aşımına uğradı mı?
         if (error.name === 'AbortError') {
           console.error('API isteği zaman aşımına uğradı.');
           this.showStatusMessage('OSRM yanıt vermedi. OSRM Docker servisinin çalıştığından emin olun.', 'error');
           return;
         }
 
-        // CORS hatası için özel mesaj
         if (error.message.includes('CORS') || error.message.includes('Failed to fetch')) {
           console.error('CORS hatası veya bağlantı sorunu:', error);
           this.showStatusMessage('CORS hatası! OSRM servisi bağlantı sorunu.', 'error');
@@ -166,23 +145,15 @@ export default class RouteCalculator {
         this.showStatusMessage(`Rota hesaplama sırasında bir hata oluştu: ${error.message}`, 'error');
       })
       .finally(() => {
-        // Yükleniyor durumunu kapat
         this.eventBus.publish('route:loading', false);
       });
   }
 
-  /**
-   * Durum mesajı gösterir
-   * @param {string} message - Gösterilecek mesaj
-   * @param {string} type - Mesaj tipi (success, error, info)
-   */
   showStatusMessage(message, type = 'info') {
-    // Durum mesajını seçim durumu alanında göster
     const statusText = document.getElementById('selection-status');
     if (statusText) {
       statusText.textContent = message;
 
-      // Mesaj tipine göre stil
       if (type === 'error') {
         statusText.style.backgroundColor = '#ffebee';
         statusText.style.color = '#c62828';
@@ -194,7 +165,6 @@ export default class RouteCalculator {
         statusText.style.color = '#0d47a1';
       }
 
-      // 5 saniye sonra eski haline getir
       setTimeout(() => {
         statusText.textContent = 'Rota seçimi için bir işlem seçin';
         statusText.style.backgroundColor = '#f5f5f5';
@@ -205,47 +175,34 @@ export default class RouteCalculator {
     console.log(`Durum mesajı (${type}): ${message}`);
   }
 
-  /**
-   * OSRM'den gelen yanıtı işleyerek rotayı çizer
-   * @param {Object} osrmResponse - OSRM API'den gelen yanıt
-   */
   drawRouteFromOSRM(osrmResponse) {
     try {
-      // Yanıtı kontrol et
       if (!osrmResponse || !osrmResponse.routes || osrmResponse.routes.length === 0) {
         console.warn('Geçerli OSRM rota verisi bulunamadı:', osrmResponse);
         return;
       }
 
-      // OSRM'nin ilk rotasını al (varsayılan olarak en iyi rota)
       const route = osrmResponse.routes[0];
 
-      // GeoJSON yapısı oluştur
       const routeGeoJSON = {
         type: 'Feature',
         properties: {
           distance: route.distance,
           duration: route.duration
         },
-        geometry: route.geometry // OSRM'den 'geometries=geojson' parametresi ile uyumlu
+        geometry: route.geometry
       };
 
       console.log('İşlenecek GeoJSON (OSRM):', routeGeoJSON);
 
-      // GeoJSON formatını OpenLayers formatına dönüştür
       const feature = new ol.format.GeoJSON().readFeature(routeGeoJSON, {
-        featureProjection: 'EPSG:3857' // Web Mercator projeksiyon
+        featureProjection: 'EPSG:3857'
       });
 
-      // Feature'a tip ekle
       feature.set('type', 'route');
-
-      // Feature'ı source'a ekle
       this.routeSource.addFeature(feature);
 
       console.log('OSRM rotası çizildi');
-
-      // Haritayı rota boyutuna uygun şekilde yakınlaştır
       this.zoomToRoute();
     } catch (error) {
       console.error('OSRM verisi işleme hatası:', error);
@@ -253,40 +210,22 @@ export default class RouteCalculator {
     }
   }
 
-  /**
-   * Haritayı çizilen rotayı gösterecek şekilde yakınlaştırır
-   */
   zoomToRoute() {
     if (this.routeSource.getFeatures().length === 0) return;
 
-    // Tüm rota özelliklerinin yayılımını (extent) hesapla
     const extent = this.routeSource.getExtent();
-
-    // Rota görünümünü EventBus üzerinden bildir
     this.eventBus.publish('map:zoomToExtent', {
       extent: extent,
-      padding: [50, 50, 50, 50], // Kenarlardan boşluk bırak
+      padding: [50, 50, 50, 50],
       duration: this.config.map.animationDuration
     });
   }
 
-  /**
-   * OSRM yanıtından rota istatistikleri hesaplar
-   * @param {Object} osrmResponse - OSRM API yanıtı
-   * @param {string} type - Araç tipi
-   * @returns {Object} - {distance, duration, type, coordinates}
-   */
   calculateOSRMRouteStatistics(osrmResponse, type) {
-    // OSRM'in ilk rotasını al
     const route = osrmResponse.routes[0];
-
-    // Mesafeyi km cinsine çevir (OSRM metre olarak döndürür)
     const distanceKm = route.distance / 1000;
-
-    // Süreyi dakika cinsine çevir (OSRM saniye olarak döndürür)
     const durationMinutes = Math.round(route.duration / 60);
 
-    // Rota koordinatlarını al
     let coordinates = [];
     if (route.geometry && route.geometry.coordinates) {
       coordinates = route.geometry.coordinates;
@@ -300,11 +239,6 @@ export default class RouteCalculator {
     };
   }
 
-  /**
- * Dakika cinsinden süreyi formatlar
- * @param {number} minutes - Dakika cinsinden süre
- * @returns {string} Formatlanmış süre
- */
   formatDuration(minutes) {
     if (!minutes || minutes < 0) return '0 dakika';
 
@@ -317,12 +251,6 @@ export default class RouteCalculator {
     }
   }
 
-  /**
-   * Rota bilgilerini kullanıcıya gösterir
-   * @param {number} distance - Mesafe (km)
-   * @param {number} duration - Süre (dakika)
-   * @param {string} vehicleType - Araç tipi
-   */
   showRouteInformation(routeStats) {
     const {
       distance,
@@ -334,20 +262,15 @@ export default class RouteCalculator {
       trafficFactor
     } = routeStats;
 
-    // Araç tipine göre metni belirle
     let vehicleText = type === 'car' ? 'Araba' :
       type === 'bicycle' ? 'Bisiklet' :
         type === 'pedestrian' ? 'Yaya' : 'Araç';
 
-    // Mesafeyi formatla
     let distanceText = distance < 1 ? `${Math.round(distance * 1000)} m` : `${distance.toFixed(1)} km`;
-
-    // Süreleri formatla
     let originalText = this.formatDuration(originalDuration || routeStats.duration);
     let displayDuration = originalDuration || routeStats.duration;
     let statusMessage = `${vehicleText}: ${distanceText}`;
 
-    // Trafik bilgisi varsa ekle
     if (hasTrafficData && trafficDuration && trafficDuration !== displayDuration) {
       const trafficText = this.formatDuration(trafficDuration);
       const diffMinutes = trafficDuration - displayDuration;
@@ -358,17 +281,15 @@ export default class RouteCalculator {
         statusMessage += ` (+${diffPercent}%)`;
       }
 
-      displayDuration = trafficDuration; // UI'da trafik süresini göster
+      displayDuration = trafficDuration;
     } else {
       statusMessage += `, Süre: ${originalText}`;
     }
 
-    // Cache bilgisi ekle
     if (cacheStats && hasTrafficData) {
       statusMessage += ` | Cache: ${cacheStats.hitRate}%`;
     }
 
-    // Konsola detaylı bilgi
     console.log(`🚗 Rota Bilgileri:`);
     console.log(`   Araç: ${vehicleText}`);
     console.log(`   Mesafe: ${distanceText}`);
@@ -378,10 +299,7 @@ export default class RouteCalculator {
       console.log(`   Cache performansı: ${cacheStats.hitRate}% hit rate, ${cacheStats.apiCalls} API calls`);
     }
 
-    // UI'da göster
     this.showStatusMessage(statusMessage, 'success');
-
-    // Rota bilgi panelini güncelle
     this.updateRouteInfoPanel(routeStats);
   }
 
@@ -432,12 +350,8 @@ export default class RouteCalculator {
     }
   }
 
-
   /**
-   * OSRM rotasına trafik verilerini uygular
-   * @param {Object} osrmResponse - OSRM API yanıtı
-   * @param {string} vehicleType - Araç tipi
-   * @returns {Object} - Trafik uygulanmış rota bilgileri
+   * 🔧 DÜZELTİLDİ: OSRM rotasına trafik verilerini uygular
    */
   async applyTrafficToRoute(osrmResponse, vehicleType) {
     try {
@@ -449,7 +363,7 @@ export default class RouteCalculator {
 
       console.log('🚦 Trafik verileri rotaya uygulanıyor...');
 
-      // Rota koordinatlarını segmentlere böl
+      // 🔧 DÜZELTİLDİ: Rota koordinatlarını segmentlere böl
       const segments = this.createRouteSegments(route.geometry.coordinates);
       console.log(`📊 Rota ${segments.length} segmente bölündü`);
 
@@ -496,7 +410,6 @@ export default class RouteCalculator {
 
     } catch (error) {
       console.error('❌ Trafik uygulama hatası:', error);
-      // Hata durumunda normal hesaplamayı döndür
       const fallbackStats = this.calculateOSRMRouteStatistics(osrmResponse, vehicleType);
       return {
         ...fallbackStats,
@@ -507,35 +420,66 @@ export default class RouteCalculator {
   }
 
   /**
-   * Rota koordinatlarını segmentlere böler
+   * 🔧 DÜZELTİLDİ: Rota koordinatlarını segmentlere böler - Daha akıllı algoritma
    * @param {Array} coordinates - OSRM'den gelen koordinat dizisi [[lon, lat], ...]
    * @param {number} maxSegmentLength - Maksimum segment uzunluğu (metre)
    * @returns {Array} - Segment dizisi
    */
-  createRouteSegments(coordinates, maxSegmentLength = 2000) {
+  createRouteSegments(coordinates, maxSegmentLength = 1500) {
+    if (!coordinates || coordinates.length < 2) {
+      console.warn('Yetersiz koordinat verisi');
+      return [];
+    }
+
     const segments = [];
     let currentDistance = 0;
     let segmentStart = coordinates[0];
+    let segmentStartIndex = 0;
+
+    console.log(`🗺️ ${coordinates.length} koordinat ile segment oluşturma başlıyor...`);
 
     for (let i = 1; i < coordinates.length; i++) {
       // İki koordinat arası mesafe hesapla
-      const distance = this.calculateDistance(coordinates[i - 1], coordinates[i]);
+      const distance = this.calculateDistance(
+        [coordinates[i - 1][1], coordinates[i - 1][0]], // [lat, lon] formatına çevir
+        [coordinates[i][1], coordinates[i][0]]           // [lat, lon] formatına çevir
+      );
+      
       currentDistance += distance;
 
       // Segment uzunluğu aşıldığında veya son koordinatta segment oluştur
       if (currentDistance >= maxSegmentLength || i === coordinates.length - 1) {
-        segments.push({
+        
+        // 🔧 DÜZELTİLDİ: Segment koordinatları [lat, lon] formatında
+        const segment = {
           start: [segmentStart[1], segmentStart[0]], // [lat, lon] formatına çevir
           end: [coordinates[i][1], coordinates[i][0]], // [lat, lon] formatına çevir
           distance: currentDistance / 1000, // metre -> km
-          startIndex: segments.length === 0 ? 0 : segments[segments.length - 1].endIndex,
-          endIndex: i
-        });
+          startIndex: segmentStartIndex,
+          endIndex: i,
+          coordinateCount: i - segmentStartIndex + 1
+        };
+
+        // Çok kısa segment'leri atla
+        if (segment.distance > 0.1) { // 100 metre minimum
+          segments.push(segment);
+        }
 
         // Sonraki segment için başlangıç noktasını güncelle
         segmentStart = coordinates[i];
+        segmentStartIndex = i;
         currentDistance = 0;
       }
+    }
+
+    console.log(`✅ ${segments.length} segment oluşturuldu (ortalama: ${(coordinates.length / segments.length).toFixed(1)} nokta/segment)`);
+    
+    // İlk birkaç segment'i debug için logla
+    if (segments.length > 0 && this.config.debug.verbose) {
+      console.log('🔍 İlk segment örnekleri:');
+      segments.slice(0, 3).forEach((seg, idx) => {
+        console.log(`   ${idx}: ${seg.distance.toFixed(2)}km - [${seg.start[0].toFixed(4)},${seg.start[1].toFixed(4)}] -> [${seg.end[0].toFixed(4)},${seg.end[1].toFixed(4)}]`);
+      });
     }
 
     return segments;
@@ -543,18 +487,17 @@ export default class RouteCalculator {
 
   /**
    * İki koordinat arası mesafe hesapla (Haversine formülü)
-   * @param {Array} coord1 - [lon, lat] formatında koordinat 1
-   * @param {Array} coord2 - [lon, lat] formatında koordinat 2
+   * @param {Array} coord1 - [lat, lon] formatında koordinat 1
+   * @param {Array} coord2 - [lat, lon] formatında koordinat 2
    * @returns {number} - Mesafe (metre)
    */
   calculateDistance(coord1, coord2) {
     const R = 6371000; // Dünya yarıçapı (metre)
 
-    // Koordinatları [lon, lat] formatından [lat, lon] formatına çevir
-    const lat1 = coord1[1] * Math.PI / 180;
-    const lat2 = coord2[1] * Math.PI / 180;
-    const deltaLat = (coord2[1] - coord1[1]) * Math.PI / 180;
-    const deltaLon = (coord2[0] - coord1[0]) * Math.PI / 180;
+    const lat1 = coord1[0] * Math.PI / 180;
+    const lat2 = coord2[0] * Math.PI / 180;
+    const deltaLat = (coord2[0] - coord1[0]) * Math.PI / 180;
+    const deltaLon = (coord2[1] - coord1[1]) * Math.PI / 180;
 
     const a = Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
       Math.cos(lat1) * Math.cos(lat2) *
@@ -599,5 +542,4 @@ export default class RouteCalculator {
 
     return trafficAwareDuration;
   }
-
 }
